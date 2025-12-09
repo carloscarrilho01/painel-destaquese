@@ -3,12 +3,7 @@ import { ConversationList } from '@/components/conversation-list'
 import { ChatView } from '@/components/chat-view'
 import { AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
-
-type ChatMessage = {
-  id: number
-  session_id: string
-  message: { type: string; content: string }
-}
+import type { ChatMessage, Conversation } from '@/lib/types'
 
 type Lead = {
   telefone: string

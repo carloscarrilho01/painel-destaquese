@@ -3,14 +3,7 @@
 import Link from 'next/link'
 import { Search } from 'lucide-react'
 import { useState } from 'react'
-
-type Conversation = {
-  session_id: string
-  clientName?: string
-  messageCount: number
-  lastMessage: string
-  lastType: string
-}
+import type { Conversation } from '@/lib/types'
 
 export function ConversationList({
   conversations,

@@ -1,22 +1,7 @@
 'use client'
 
 import { User, Bot } from 'lucide-react'
-
-type ChatMessage = {
-  id: number
-  session_id: string
-  message: { type: string; content: string }
-}
-
-type Conversation = {
-  session_id: string
-  clientName?: string
-  messages: ChatMessage[]
-  visibleMessages?: ChatMessage[]
-  messageCount: number
-  lastMessage: string
-  lastType: string
-}
+import type { Conversation } from '@/lib/types'
 
 function isToolMessage(content: string): boolean {
   return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
