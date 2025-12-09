@@ -4,6 +4,12 @@ import { ChatView } from '@/components/chat-view'
 import { AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 
+type ChatMessage = {
+  id: number
+  session_id: string
+  message: { type: string; content: string }
+}
+
 async function getConversations() {
   if (!isSupabaseConfigured) return []
 
@@ -12,21 +18,26 @@ async function getConversations() {
     .select('*')
     .order('id', { ascending: true })
 
-  const grouped = new Map<string, typeof chats>()
+  if (!chats) return []
 
-  chats?.forEach(chat => {
+  const grouped = new Map<string, ChatMessage[]>()
+
+  chats.forEach((chat: ChatMessage) => {
     const existing = grouped.get(chat.session_id) || []
     existing.push(chat)
     grouped.set(chat.session_id, existing)
   })
 
-  return Array.from(grouped.entries()).map(([session_id, messages]) => ({
-    session_id,
-    messages: messages || [],
-    messageCount: messages?.length || 0,
-    lastMessage: messages?.[messages.length - 1]?.message?.content || '',
-    lastType: messages?.[messages.length - 1]?.message?.type || 'human'
-  }))
+  return Array.from(grouped.entries()).map(([session_id, messages]) => {
+    const lastMsg = messages[messages.length - 1]
+    return {
+      session_id,
+      messages,
+      messageCount: messages.length,
+      lastMessage: lastMsg?.message?.content || '',
+      lastType: lastMsg?.message?.type || 'human'
+    }
+  })
 }
 
 export default async function ConversasPage({
