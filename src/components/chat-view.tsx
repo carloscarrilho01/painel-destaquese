@@ -2,22 +2,17 @@
 
 import { User, Bot } from 'lucide-react'
 
-type Message = {
-  type: 'human' | 'ai'
-  content: string
-}
-
-type Chat = {
+type ChatMessage = {
   id: number
   session_id: string
-  message: Message
+  message: { type: string; content: string }
 }
 
 type Conversation = {
   session_id: string
   clientName?: string
-  messages: Chat[]
-  visibleMessages?: Chat[]
+  messages: ChatMessage[]
+  visibleMessages?: ChatMessage[]
   messageCount: number
   lastMessage: string
   lastType: string
