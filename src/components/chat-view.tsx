@@ -1,0 +1,92 @@
+'use client'
+
+import { User, Bot } from 'lucide-react'
+
+type Message = {
+  type: 'human' | 'ai'
+  content: string
+}
+
+type Chat = {
+  id: number
+  session_id: string
+  message: Message
+}
+
+type Conversation = {
+  session_id: string
+  messages: Chat[]
+  messageCount: number
+  lastMessage: string
+  lastType: string
+}
+
+export function ChatView({
+  conversation,
+  session_id,
+}: {
+  conversation?: Conversation
+  session_id?: string
+}) {
+  if (!conversation) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[var(--background)]">
+        <div className="text-center text-[var(--muted)]">
+          <p className="text-lg">Selecione uma conversa</p>
+          <p className="text-sm mt-2">Escolha uma conversa na lista ao lado</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex-1 flex flex-col bg-[var(--background)]">
+      <div className="p-4 border-b border-[var(--border)] bg-[var(--card)]">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-[var(--primary)] rounded-full flex items-center justify-center text-white font-semibold">
+            {session_id?.slice(-2)}
+          </div>
+          <div>
+            <p className="font-medium">{session_id}</p>
+            <p className="text-sm text-[var(--muted)]">
+              {conversation.messageCount} mensagens
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto p-4 space-y-4">
+        {conversation.messages.map((chat) => {
+          const isHuman = chat.message.type === 'human'
+
+          return (
+            <div
+              key={chat.id}
+              className={`flex ${isHuman ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[70%] rounded-lg p-3 ${
+                  isHuman
+                    ? 'bg-[var(--human-bubble)] text-white'
+                    : 'bg-[var(--ai-bubble)] text-[var(--foreground)]'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  {isHuman ? (
+                    <User size={14} className="text-green-300" />
+                  ) : (
+                    <Bot size={14} className="text-blue-300" />
+                  )}
+                  <span className="text-xs opacity-70">
+                    {isHuman ? 'Usuario' : 'Agente'}
+                  </span>
+                </div>
+                <p className="text-sm whitespace-pre-wrap">{chat.message.content}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
