@@ -22,10 +22,10 @@ async function getConversations() {
 
   return Array.from(grouped.entries()).map(([session_id, messages]) => ({
     session_id,
-    messages,
-    messageCount: messages.length,
-    lastMessage: messages[messages.length - 1]?.message?.content || '',
-    lastType: messages[messages.length - 1]?.message?.type || 'human'
+    messages: messages || [],
+    messageCount: messages?.length || 0,
+    lastMessage: messages?.[messages.length - 1]?.message?.content || '',
+    lastType: messages?.[messages.length - 1]?.message?.type || 'human'
   }))
 }
 
