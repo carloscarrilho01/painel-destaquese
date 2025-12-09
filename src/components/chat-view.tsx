@@ -15,10 +15,16 @@ type Chat = {
 
 type Conversation = {
   session_id: string
+  clientName?: string
   messages: Chat[]
+  visibleMessages?: Chat[]
   messageCount: number
   lastMessage: string
   lastType: string
+}
+
+function isToolMessage(content: string): boolean {
+  return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
 }
 
 export function ChatView({
@@ -39,15 +45,24 @@ export function ChatView({
     )
   }
 
+  const displayName = conversation.clientName || session_id
+  const initials = conversation.clientName
+    ? conversation.clientName.slice(0, 2).toUpperCase()
+    : session_id?.slice(-2)
+
+  // Usar visibleMessages se disponível, senão filtrar na hora
+  const messagesToShow = conversation.visibleMessages ||
+    conversation.messages.filter(m => !isToolMessage(m.message?.content))
+
   return (
     <div className="flex-1 flex flex-col bg-[var(--background)]">
       <div className="p-4 border-b border-[var(--border)] bg-[var(--card)]">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-[var(--primary)] rounded-full flex items-center justify-center text-white font-semibold">
-            {session_id?.slice(-2)}
+            {initials}
           </div>
           <div>
-            <p className="font-medium">{session_id}</p>
+            <p className="font-medium">{displayName}</p>
             <p className="text-sm text-[var(--muted)]">
               {conversation.messageCount} mensagens
             </p>
@@ -56,7 +71,7 @@ export function ChatView({
       </div>
 
       <div className="flex-1 overflow-auto p-4 space-y-4">
-        {conversation.messages.map((chat) => {
+        {messagesToShow.map((chat) => {
           const isHuman = chat.message.type === 'human'
 
           return (
@@ -78,7 +93,7 @@ export function ChatView({
                     <Bot size={14} className="text-blue-300" />
                   )}
                   <span className="text-xs opacity-70">
-                    {isHuman ? 'Usuario' : 'Agente'}
+                    {isHuman ? 'Cliente' : 'Agente'}
                   </span>
                 </div>
                 <p className="text-sm whitespace-pre-wrap">{chat.message.content}</p>

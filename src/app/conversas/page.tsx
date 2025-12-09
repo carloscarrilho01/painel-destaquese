@@ -10,15 +10,35 @@ type ChatMessage = {
   message: { type: string; content: string }
 }
 
+type Lead = {
+  telefone: string
+  nome: string | null
+}
+
+function isToolMessage(content: string): boolean {
+  return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
+}
+
 async function getConversations() {
   if (!isSupabaseConfigured) return []
 
-  const { data: chats } = await supabase
-    .from('chats')
-    .select('*')
-    .order('id', { ascending: true })
+  const [chatsResult, leadsResult] = await Promise.all([
+    supabase.from('chats').select('*').order('id', { ascending: true }),
+    supabase.from('leads').select('telefone, nome')
+  ])
+
+  const chats = chatsResult.data
+  const leads = leadsResult.data as Lead[] | null
 
   if (!chats) return []
+
+  // Criar mapa de telefone -> nome
+  const leadMap = new Map<string, string>()
+  leads?.forEach(lead => {
+    if (lead.nome) {
+      leadMap.set(lead.telefone, lead.nome)
+    }
+  })
 
   const grouped = new Map<string, ChatMessage[]>()
 
@@ -29,11 +49,19 @@ async function getConversations() {
   })
 
   return Array.from(grouped.entries()).map(([session_id, messages]) => {
-    const lastMsg = messages[messages.length - 1]
+    // Filtrar mensagens de tool_calls para exibição
+    const visibleMessages = messages.filter(m => !isToolMessage(m.message?.content))
+    const lastMsg = visibleMessages[visibleMessages.length - 1] || messages[messages.length - 1]
+
+    // Buscar nome do lead pelo telefone (session_id)
+    const clientName = leadMap.get(session_id)
+
     return {
       session_id,
+      clientName,
       messages,
-      messageCount: messages.length,
+      visibleMessages,
+      messageCount: visibleMessages.length,
       lastMessage: lastMsg?.message?.content || '',
       lastType: lastMsg?.message?.type || 'human'
     }

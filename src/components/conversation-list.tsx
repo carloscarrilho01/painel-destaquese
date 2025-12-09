@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 type Conversation = {
   session_id: string
+  clientName?: string
   messageCount: number
   lastMessage: string
   lastType: string
@@ -20,10 +21,14 @@ export function ConversationList({
 }) {
   const [search, setSearch] = useState('')
 
-  const filtered = conversations.filter(conv =>
-    conv.session_id.toLowerCase().includes(search.toLowerCase()) ||
-    conv.lastMessage.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = conversations.filter(conv => {
+    const searchLower = search.toLowerCase()
+    return (
+      conv.session_id.toLowerCase().includes(searchLower) ||
+      conv.clientName?.toLowerCase().includes(searchLower) ||
+      conv.lastMessage.toLowerCase().includes(searchLower)
+    )
+  })
 
   return (
     <div className="w-80 bg-[var(--card)] border-r border-[var(--border)] flex flex-col">
@@ -46,33 +51,40 @@ export function ConversationList({
             Nenhuma conversa encontrada
           </div>
         ) : (
-          filtered.map((conv) => (
-            <Link
-              key={conv.session_id}
-              href={`/conversas?session=${conv.session_id}`}
-              className={`block p-4 border-b border-[var(--border)] hover:bg-[var(--card-hover)] transition-colors ${
-                selectedSession === conv.session_id ? 'bg-[var(--card-hover)]' : ''
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-[var(--primary)] rounded-full flex items-center justify-center text-white font-semibold">
-                  {conv.session_id.slice(-2)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium truncate">{conv.session_id}</p>
-                    <span className="text-xs text-[var(--muted)]">
-                      {conv.messageCount} msgs
-                    </span>
+          filtered.map((conv) => {
+            const displayName = conv.clientName || conv.session_id
+            const initials = conv.clientName
+              ? conv.clientName.slice(0, 2).toUpperCase()
+              : conv.session_id.slice(-2)
+
+            return (
+              <Link
+                key={conv.session_id}
+                href={`/conversas?session=${conv.session_id}`}
+                className={`block p-4 border-b border-[var(--border)] hover:bg-[var(--card-hover)] transition-colors ${
+                  selectedSession === conv.session_id ? 'bg-[var(--card-hover)]' : ''
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-[var(--primary)] rounded-full flex items-center justify-center text-white font-semibold">
+                    {initials}
                   </div>
-                  <p className="text-sm text-[var(--muted)] truncate">
-                    {conv.lastType === 'ai' ? 'Agente: ' : 'Usuario: '}
-                    {conv.lastMessage.slice(0, 30)}...
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium truncate">{displayName}</p>
+                      <span className="text-xs text-[var(--muted)]">
+                        {conv.messageCount} msgs
+                      </span>
+                    </div>
+                    <p className="text-sm text-[var(--muted)] truncate">
+                      {conv.lastType === 'ai' ? 'Agente: ' : 'Cliente: '}
+                      {conv.lastMessage.slice(0, 30)}...
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))
+              </Link>
+            )
+          })
         )}
       </div>
     </div>
