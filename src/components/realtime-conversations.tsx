@@ -129,11 +129,11 @@ export function RealtimeConversations({
           setRealtimeStatus('error')
           console.warn('⚠️ [Realtime] Erro na conexão. Usando polling como fallback.')
 
-          // Fallback: Polling a cada 5 segundos
+          // Fallback: Polling a cada 3 segundos
           pollingInterval = setInterval(() => {
             console.log('🔄 [Polling] Verificando novas mensagens...')
             fetchData()
-          }, 5000)
+          }, 3000)
 
           setRealtimeStatus('polling')
         }
@@ -171,7 +171,7 @@ export function RealtimeConversations({
         {realtimeStatus === 'polling' && (
           <div className="bg-yellow-500/20 text-yellow-500 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 border border-yellow-500/30">
             <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
-            Atualizando (5s)
+            Atualizando (3s)
           </div>
         )}
         {realtimeStatus === 'connecting' && (
