@@ -33,6 +33,39 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anonima`}
       </div>
 
       <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-6 mt-6">
+        <h2 className="text-lg font-semibold mb-4">Webhook n8n para Envio de Mensagens</h2>
+
+        <div className="space-y-4">
+          <div className="p-4 bg-[var(--background)] rounded-lg border border-[var(--border)]">
+            <p className="text-sm text-[var(--muted)] mb-2">
+              Configure o webhook n8n no arquivo <code className="bg-[var(--card)] px-2 py-1 rounded">.env.local</code>
+            </p>
+            <pre className="text-sm bg-[var(--card)] p-4 rounded-lg overflow-x-auto">
+{`N8N_WEBHOOK_URL=https://seu-n8n.app.n8n.cloud/webhook/send-whatsapp`}
+            </pre>
+          </div>
+
+          <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+            <h3 className="font-medium text-green-400 mb-2">Como funciona:</h3>
+            <ol className="text-sm text-[var(--muted)] space-y-2 list-decimal list-inside">
+              <li>Acesse uma conversa na aba Conversas</li>
+              <li>Digite sua mensagem no campo inferior</li>
+              <li>Clique em Enviar (ou pressione Enter)</li>
+              <li>A mensagem sera enviada via webhook para o n8n</li>
+              <li>O n8n processa e envia para o WhatsApp do cliente</li>
+            </ol>
+          </div>
+
+          <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+            <h3 className="font-medium text-yellow-400 mb-2">Documentacao completa:</h3>
+            <p className="text-sm text-[var(--muted)]">
+              Consulte o arquivo <code className="bg-[var(--card)] px-2 py-1 rounded">N8N_WEBHOOK_SETUP.md</code> na raiz do projeto para instrucoes detalhadas sobre como configurar o workflow no n8n.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-6 mt-6">
         <h2 className="text-lg font-semibold mb-4">Estrutura das Tabelas</h2>
 
         <div className="space-y-4">
