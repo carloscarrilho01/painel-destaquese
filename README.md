@@ -8,7 +8,9 @@ Dashboard de monitoramento e atendimento para agente WhatsApp com integração n
 - 💬 **Conversas**: Visualização completa do histórico de conversas
 - ✉️ **Envio de Mensagens**: Responder conversas diretamente pelo painel (via webhook n8n)
 - 👥 **Gestão de Leads**: Gerenciamento de leads com filtros e busca
-- ⚡ **Real-time**: Integração com Supabase para dados atualizados
+- ⚡ **Atualização em Tempo Real**: Supabase Realtime para conversas que atualizam automaticamente
+- 🔔 **Notificações Visuais**: Indicador quando nova mensagem chega
+- 📜 **Auto-scroll**: Scroll automático para novas mensagens
 - 🎨 **UI Dark Mode**: Interface moderna inspirada no WhatsApp Web
 
 ## Tecnologias
@@ -64,7 +66,17 @@ N8N_WEBHOOK_URL=https://seu-n8n.app.n8n.cloud/webhook/send-whatsapp
 
 **Documentação completa:** Consulte [`N8N_WEBHOOK_SETUP.md`](./N8N_WEBHOOK_SETUP.md) para instruções detalhadas.
 
-### 3. Estrutura das Tabelas no Supabase
+### 3. Ativar Supabase Realtime (IMPORTANTE - para atualização automática)
+
+Para que as conversas atualizem automaticamente sem recarregar a página:
+
+1. Acesse o Supabase > **Database** > **Replication**
+2. Ative **Enable Realtime** na tabela `chats`
+3. (Opcional) Ative também na tabela `leads`
+
+**Documentação completa:** Consulte [`REALTIME_SETUP.md`](./REALTIME_SETUP.md) para instruções detalhadas.
+
+### 4. Estrutura das Tabelas no Supabase
 
 #### Tabela: `chats`
 ```sql

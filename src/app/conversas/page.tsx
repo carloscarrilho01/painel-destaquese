@@ -1,6 +1,5 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import { ConversationList } from '@/components/conversation-list'
-import { ChatView } from '@/components/chat-view'
+import { RealtimeConversations } from '@/components/realtime-conversations'
 import { AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import type { ChatMessage, Conversation } from '@/lib/types'
@@ -113,18 +112,11 @@ export default async function ConversasPage({
   const params = await searchParams
   const conversations = await getConversations()
   const selectedSession = params.session || conversations[0]?.session_id
-  const selectedConversation = conversations.find(c => c.session_id === selectedSession)
 
   return (
-    <div className="flex h-full">
-      <ConversationList
-        conversations={conversations}
-        selectedSession={selectedSession}
-      />
-      <ChatView
-        conversation={selectedConversation}
-        session_id={selectedSession}
-      />
-    </div>
+    <RealtimeConversations
+      initialConversations={conversations}
+      initialSession={selectedSession}
+    />
   )
 }

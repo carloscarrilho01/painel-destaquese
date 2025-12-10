@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { User, Bot, Send, Loader2 } from 'lucide-react'
 import type { Conversation } from '@/lib/types'
 
@@ -18,6 +18,15 @@ export function ChatView({
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll para a última mensagem quando houver novas mensagens
+  useEffect(() => {
+    if (conversation && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [conversation?.messages.length])
 
   const handleSendMessage = async () => {
     if (!message.trim() || !session_id || sending) return
@@ -100,7 +109,7 @@ export function ChatView({
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4 space-y-4">
+      <div ref={messagesContainerRef} className="flex-1 overflow-auto p-4 space-y-4">
         {messagesToShow.map((chat) => {
           const isHuman = chat.message.type === 'human'
 
@@ -131,6 +140,8 @@ export function ChatView({
             </div>
           )
         })}
+        {/* Elemento invisível para scroll automático */}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Campo de envio de mensagem */}
