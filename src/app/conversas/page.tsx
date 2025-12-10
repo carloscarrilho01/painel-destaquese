@@ -27,16 +27,25 @@ async function getConversations() {
 
   if (!chats) return []
 
-  // Criar mapa de telefone -> nome (normalizado)
+  // Criar mapa de telefone -> nome (normalizado com variações)
   const leadMap = new Map<string, string>()
   leads?.forEach(lead => {
     if (lead.nome && lead.telefone) {
-      // Normalizar telefone removendo caracteres especiais
-      const normalizedPhone = lead.telefone.replace(/\D/g, '')
-      leadMap.set(normalizedPhone, lead.nome)
-      // Também mapear sem o código do país (55)
-      if (normalizedPhone.startsWith('55')) {
-        leadMap.set(normalizedPhone.slice(2), lead.nome)
+      const phone = lead.telefone.replace(/\D/g, '')
+      leadMap.set(phone, lead.nome)
+
+      // Variações com/sem código do país
+      if (phone.startsWith('55')) {
+        const semPais = phone.slice(2)
+        leadMap.set(semPais, lead.nome)
+
+        // Adicionar 9 no celular: 55XX + 9 + XXXXXXXX (telefones antigos sem o 9)
+        if (semPais.length === 10) {
+          const ddd = semPais.slice(0, 2)
+          const numero = semPais.slice(2)
+          leadMap.set(`55${ddd}9${numero}`, lead.nome)
+          leadMap.set(`${ddd}9${numero}`, lead.nome)
+        }
       }
     }
   })
