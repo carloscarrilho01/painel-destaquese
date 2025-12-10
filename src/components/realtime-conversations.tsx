@@ -101,6 +101,29 @@ export function RealtimeConversations({
     }
 
     let pollingInterval: NodeJS.Timeout | null = null
+    let hasStartedPolling = false
+
+    // Iniciar polling imediatamente como fallback
+    // Se Realtime conectar, o polling será cancelado
+    const startPolling = () => {
+      if (hasStartedPolling) return
+      hasStartedPolling = true
+
+      console.log('🔄 [Polling] Iniciando polling a cada 3 segundos...')
+      pollingInterval = setInterval(() => {
+        console.log('🔄 [Polling] Verificando novas mensagens...')
+        fetchData()
+      }, 3000)
+      setRealtimeStatus('polling')
+    }
+
+    // Iniciar polling após 2 segundos se Realtime não conectar
+    const pollingTimeout = setTimeout(() => {
+      if (realtimeStatus === 'connecting') {
+        console.log('⏱️ [Polling] Realtime demorou, iniciando polling...')
+        startPolling()
+      }
+    }, 2000)
 
     // Tentar subscrever via Realtime
     const channel = supabase
@@ -125,17 +148,18 @@ export function RealtimeConversations({
         if (status === 'SUBSCRIBED') {
           setRealtimeStatus('connected')
           console.log('✅ [Realtime] Conectado com sucesso!')
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setRealtimeStatus('error')
-          console.warn('⚠️ [Realtime] Erro na conexão. Usando polling como fallback.')
 
-          // Fallback: Polling a cada 3 segundos
-          pollingInterval = setInterval(() => {
-            console.log('🔄 [Polling] Verificando novas mensagens...')
-            fetchData()
-          }, 3000)
-
-          setRealtimeStatus('polling')
+          // Cancelar polling se estava rodando
+          if (pollingInterval) {
+            clearInterval(pollingInterval)
+            pollingInterval = null
+            hasStartedPolling = false
+            console.log('⏹️ [Polling] Polling cancelado, Realtime ativo')
+          }
+          clearTimeout(pollingTimeout)
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn('⚠️ [Realtime] Erro na conexão:', status)
+          startPolling()
         }
       })
 
@@ -146,6 +170,7 @@ export function RealtimeConversations({
       if (pollingInterval) {
         clearInterval(pollingInterval)
       }
+      clearTimeout(pollingTimeout)
     }
   }, [])
 
