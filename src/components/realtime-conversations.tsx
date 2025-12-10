@@ -80,22 +80,29 @@ export function RealtimeConversations({
   const [conversations, setConversations] = useState(initialConversations)
   const [selectedSession, setSelectedSession] = useState(initialSession || initialConversations[0]?.session_id)
   const [isLive, setIsLive] = useState(false)
+  const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error' | 'polling'>('connecting')
 
   useEffect(() => {
     // Função para buscar dados atualizados
     const fetchData = async () => {
-      const [chatsResult, leadsResult] = await Promise.all([
-        supabase.from('chats').select('*').order('id', { ascending: true }),
-        supabase.from('leads').select('telefone, nome')
-      ])
+      try {
+        const [chatsResult, leadsResult] = await Promise.all([
+          supabase.from('chats').select('*').order('id', { ascending: true }),
+          supabase.from('leads').select('telefone, nome')
+        ])
 
-      if (chatsResult.data && leadsResult.data) {
-        const processed = processConversations(chatsResult.data, leadsResult.data)
-        setConversations(processed)
+        if (chatsResult.data && leadsResult.data) {
+          const processed = processConversations(chatsResult.data, leadsResult.data)
+          setConversations(processed)
+        }
+      } catch (error) {
+        console.error('Erro ao buscar dados:', error)
       }
     }
 
-    // Subscrever a mudanças na tabela chats
+    let pollingInterval: NodeJS.Timeout | null = null
+
+    // Tentar subscrever via Realtime
     const channel = supabase
       .channel('chats-changes')
       .on(
@@ -106,19 +113,39 @@ export function RealtimeConversations({
           table: 'chats'
         },
         (payload) => {
-          console.log('Nova mensagem recebida:', payload)
+          console.log('✅ [Realtime] Nova mensagem recebida:', payload)
           setIsLive(true)
-          fetchData() // Recarregar dados quando houver mudanças
-
-          // Remover indicador após 2 segundos
+          fetchData()
           setTimeout(() => setIsLive(false), 2000)
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('📡 [Realtime] Status:', status)
 
-    // Cleanup ao desmontar componente
+        if (status === 'SUBSCRIBED') {
+          setRealtimeStatus('connected')
+          console.log('✅ [Realtime] Conectado com sucesso!')
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setRealtimeStatus('error')
+          console.warn('⚠️ [Realtime] Erro na conexão. Usando polling como fallback.')
+
+          // Fallback: Polling a cada 5 segundos
+          pollingInterval = setInterval(() => {
+            console.log('🔄 [Polling] Verificando novas mensagens...')
+            fetchData()
+          }, 5000)
+
+          setRealtimeStatus('polling')
+        }
+      })
+
+    // Cleanup
     return () => {
+      console.log('🔌 [Realtime] Desconectando...')
       supabase.removeChannel(channel)
+      if (pollingInterval) {
+        clearInterval(pollingInterval)
+      }
     }
   }, [])
 
@@ -133,11 +160,33 @@ export function RealtimeConversations({
 
   return (
     <div className="flex h-full relative">
-      {/* Indicador de atualização em tempo real */}
+      {/* Indicador de status de conexão */}
+      <div className="absolute top-4 left-4 z-50">
+        {realtimeStatus === 'connected' && (
+          <div className="bg-green-500/20 text-green-500 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 border border-green-500/30">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            Tempo real ativo
+          </div>
+        )}
+        {realtimeStatus === 'polling' && (
+          <div className="bg-yellow-500/20 text-yellow-500 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 border border-yellow-500/30">
+            <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+            Atualizando (5s)
+          </div>
+        )}
+        {realtimeStatus === 'connecting' && (
+          <div className="bg-blue-500/20 text-blue-500 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 border border-blue-500/30">
+            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+            Conectando...
+          </div>
+        )}
+      </div>
+
+      {/* Indicador de nova mensagem */}
       {isLive && (
-        <div className="absolute top-4 right-4 z-50 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg">
+        <div className="absolute top-4 right-4 z-50 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg animate-bounce">
           <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-          Mensagem nova recebida
+          Mensagem nova recebida!
         </div>
       )}
 
