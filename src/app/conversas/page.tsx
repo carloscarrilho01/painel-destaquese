@@ -27,11 +27,17 @@ async function getConversations() {
 
   if (!chats) return []
 
-  // Criar mapa de telefone -> nome
+  // Criar mapa de telefone -> nome (normalizado)
   const leadMap = new Map<string, string>()
   leads?.forEach(lead => {
-    if (lead.nome) {
-      leadMap.set(lead.telefone, lead.nome)
+    if (lead.nome && lead.telefone) {
+      // Normalizar telefone removendo caracteres especiais
+      const normalizedPhone = lead.telefone.replace(/\D/g, '')
+      leadMap.set(normalizedPhone, lead.nome)
+      // Também mapear sem o código do país (55)
+      if (normalizedPhone.startsWith('55')) {
+        leadMap.set(normalizedPhone.slice(2), lead.nome)
+      }
     }
   })
 
@@ -48,8 +54,11 @@ async function getConversations() {
     const visibleMessages = messages.filter(m => !isToolMessage(m.message?.content))
     const lastMsg = visibleMessages[visibleMessages.length - 1] || messages[messages.length - 1]
 
-    // Buscar nome do lead pelo telefone (session_id)
-    const clientName = leadMap.get(session_id)
+    // Buscar nome do lead pelo telefone (session_id) - tentar várias variações
+    const normalizedSessionId = session_id.replace(/\D/g, '')
+    const clientName = leadMap.get(normalizedSessionId) ||
+                       leadMap.get(session_id) ||
+                       (normalizedSessionId.startsWith('55') ? leadMap.get(normalizedSessionId.slice(2)) : undefined)
 
     return {
       session_id,
