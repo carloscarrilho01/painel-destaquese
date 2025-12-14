@@ -19,6 +19,23 @@ async function getLeads() {
   return data || []
 }
 
+async function getConversationSessions() {
+  if (!isSupabaseConfigured) return []
+
+  const { data, error } = await supabase
+    .from('chats')
+    .select('session_id')
+
+  if (error) {
+    console.error('Error fetching conversation sessions:', error)
+    return []
+  }
+
+  // Retorna array de session_ids únicos
+  const uniqueSessions = [...new Set(data?.map(chat => chat.session_id) || [])]
+  return uniqueSessions
+}
+
 export default async function LeadsPage() {
   if (!isSupabaseConfigured) {
     return (
@@ -50,6 +67,7 @@ export default async function LeadsPage() {
   }
 
   const leads = await getLeads()
+  const conversationSessions = await getConversationSessions()
 
   return (
     <div className="p-8">
@@ -58,7 +76,7 @@ export default async function LeadsPage() {
         <p className="text-[var(--muted)]">Gerenciamento de contatos e leads</p>
       </div>
 
-      <LeadsTable leads={leads} />
+      <LeadsTable leads={leads} conversationSessions={conversationSessions} />
     </div>
   )
 }

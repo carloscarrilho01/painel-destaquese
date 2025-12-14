@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ConversationList } from '@/components/conversation-list'
 import { ChatView } from '@/components/chat-view'
@@ -77,10 +78,26 @@ export function RealtimeConversations({
   initialConversations: Conversation[]
   initialSession?: string
 }) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [conversations, setConversations] = useState(initialConversations)
   const [selectedSession, setSelectedSession] = useState(initialSession || initialConversations[0]?.session_id)
   const [isLive, setIsLive] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error' | 'polling'>('connecting')
+
+  // Atualiza a conversa selecionada quando o query param mudar
+  useEffect(() => {
+    const sessionFromUrl = searchParams.get('session')
+    if (sessionFromUrl && sessionFromUrl !== selectedSession) {
+      setSelectedSession(sessionFromUrl)
+    }
+  }, [searchParams, selectedSession])
+
+  // Função para navegar para uma conversa (atualiza URL)
+  const handleNewConversation = (sessionId: string) => {
+    router.push(`/conversas?session=${sessionId}`)
+    setSelectedSession(sessionId)
+  }
 
   useEffect(() => {
     // Função para buscar dados atualizados
@@ -218,6 +235,7 @@ export function RealtimeConversations({
       <ConversationList
         conversations={conversations}
         selectedSession={selectedSession}
+        onNewConversation={handleNewConversation}
       />
       <ChatView
         conversation={selectedConversation}
