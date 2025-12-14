@@ -202,28 +202,6 @@ export function RealtimeConversations({
 
   return (
     <div className="flex h-full relative">
-      {/* Indicador de status de conexão */}
-      <div className="absolute top-4 left-4 z-50">
-        {realtimeStatus === 'connected' && (
-          <div className="bg-green-500/20 text-green-500 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 border border-green-500/30">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            Tempo real ativo
-          </div>
-        )}
-        {realtimeStatus === 'polling' && (
-          <div className="bg-yellow-500/20 text-yellow-500 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 border border-yellow-500/30">
-            <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
-            Atualizando (3s)
-          </div>
-        )}
-        {realtimeStatus === 'connecting' && (
-          <div className="bg-blue-500/20 text-blue-500 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 border border-blue-500/30">
-            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-            Conectando...
-          </div>
-        )}
-      </div>
-
       {/* Indicador de nova mensagem */}
       {isLive && (
         <div className="absolute top-4 right-4 z-50 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg animate-bounce">
