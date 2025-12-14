@@ -11,9 +11,11 @@ function isToolMessage(content: string): boolean {
 export function ChatView({
   conversation,
   session_id,
+  onUpdateConversations,
 }: {
   conversation?: Conversation
   session_id?: string
+  onUpdateConversations?: () => void
 }) {
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -109,6 +111,10 @@ export function ChatView({
 
         // Limpar feedback após 3 segundos
         setTimeout(() => setFeedback(null), 3000)
+        // Atualizar a lista de conversas
+        if (onUpdateConversations) {
+          setTimeout(() => onUpdateConversations(), 500)
+        }
       } else {
         setFeedback({ type: 'error', text: data.error || 'Erro ao alternar status do agente' })
       }

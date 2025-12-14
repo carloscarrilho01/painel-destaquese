@@ -7,6 +7,7 @@ Dashboard de monitoramento e atendimento para agente WhatsApp com integração n
 - 📊 **Dashboard**: Estatísticas de conversas, mensagens e leads
 - 💬 **Conversas**: Visualização completa do histórico de conversas
 - ✉️ **Envio de Mensagens**: Responder conversas diretamente pelo painel (via webhook n8n)
+- 🎤 **Envio de Áudio**: Gravar áudio ou enviar arquivo de áudio (NOVO!)
 - 👥 **Gestão de Leads**: Gerenciamento de leads com filtros e busca
 - ⚡ **Atualização em Tempo Real**: Supabase Realtime para conversas que atualizam automaticamente
 - 🔔 **Notificações Visuais**: Indicador quando nova mensagem chega
@@ -56,7 +57,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anonima
 3. Vá em Settings > API
 4. Copie a URL e a chave anon (pública)
 
-### 2. Configurar Webhook n8n (Opcional - para envio de mensagens)
+### 2. Configurar Webhook n8n (Opcional - para envio de mensagens e áudio)
 
 Adicione no `.env.local`:
 
@@ -64,7 +65,9 @@ Adicione no `.env.local`:
 N8N_WEBHOOK_URL=https://seu-n8n.app.n8n.cloud/webhook/send-whatsapp
 ```
 
-**Documentação completa:** Consulte [`N8N_WEBHOOK_SETUP.md`](./N8N_WEBHOOK_SETUP.md) para instruções detalhadas.
+**Documentação completa:**
+- [`N8N_WEBHOOK_SETUP.md`](./N8N_WEBHOOK_SETUP.md) - Configuração webhook para texto
+- [`AUDIO_SETUP.md`](./AUDIO_SETUP.md) - Configuração completa para envio de áudio
 
 ### 3. Ativar Supabase Realtime (IMPORTANTE - para atualização automática)
 
@@ -104,7 +107,7 @@ CREATE TABLE leads (
 
 ## Como Usar
 
-### Enviar Mensagens pelo Painel
+### Enviar Mensagens de Texto
 
 1. **Configure o webhook n8n** (veja seção anterior)
 2. **Acesse a aba Conversas** (`/conversas`)
@@ -113,10 +116,28 @@ CREATE TABLE leads (
 5. **Pressione Enter** ou clique em "Enviar"
 6. A mensagem será enviada via webhook para o n8n, que processará e enviará para o WhatsApp
 
+### Enviar Áudio (NOVO!)
+
+**Opção 1: Gravar Áudio**
+1. **Configure Supabase Storage** (veja [`AUDIO_SETUP.md`](./AUDIO_SETUP.md))
+2. **Clique no ícone do microfone** 🎤
+3. **Permita acesso ao microfone** (primeira vez)
+4. **Fale sua mensagem**
+5. **Clique em Parar** (quadrado vermelho)
+6. **Ouça o preview** e clique em **Enviar** ou **Descartar**
+
+**Opção 2: Enviar Arquivo de Áudio**
+1. **Clique no ícone de anexo** 📎
+2. **Selecione arquivo de áudio** (MP3, OGG, WAV, WEBM, MP4)
+3. **Ouça o preview** e clique em **Enviar arquivo**
+
 ### Funcionalidades
 
 - ✅ Envio instantâneo com feedback visual (sucesso/erro)
 - ✅ Suporte a Enter para enviar (Shift+Enter para nova linha)
+- ✅ Gravação de áudio direto do navegador
+- ✅ Upload de arquivos de áudio (até 10MB)
+- ✅ Preview de áudio antes de enviar
 - ✅ Indicador de carregamento durante envio
 - ✅ Validação de campos obrigatórios
 - ✅ Timeout de 10 segundos para webhook
@@ -127,12 +148,15 @@ CREATE TABLE leads (
 src/
 ├── app/
 │   ├── api/
-│   │   └── send-message/     # API route para envio de mensagens
+│   │   ├── send-message/      # API route para envio de mensagens
+│   │   └── upload-audio/      # API route para upload de áudio (NOVO)
 │   ├── conversas/             # Página de conversas
 │   ├── leads/                 # Página de leads
 │   ├── configuracoes/         # Página de configurações
 │   └── page.tsx               # Dashboard
 ├── components/
+│   ├── audio-recorder.tsx     # Componente de gravação de áudio (NOVO)
+│   ├── file-uploader.tsx      # Componente de upload de arquivo (NOVO)
 │   ├── chat-view.tsx          # Visualizador de chat (com envio)
 │   ├── conversation-list.tsx  # Lista de conversas
 │   ├── leads-table.tsx        # Tabela de leads
@@ -142,17 +166,35 @@ src/
     └── types.ts               # Tipos TypeScript
 ```
 
-## Learn More
+## Deploy na Vercel
 
-To learn more about Next.js, take a look at the following resources:
+### Guia Rápido (5 minutos)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Consulte [`DEPLOY_QUICKSTART.md`](./DEPLOY_QUICKSTART.md) para deploy rápido.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Guia Completo
 
-## Deploy on Vercel
+Consulte [`DEPLOY.md`](./DEPLOY.md) para instruções detalhadas de deploy, incluindo:
+- Configuração de variáveis de ambiente
+- Domínio customizado
+- Monitoramento e logs
+- Otimizações de produção
+- Troubleshooting
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Deploy automático:** Configurado via Vercel Git Integration
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Documentação
+
+### Guias de Configuração
+- [`README.md`](./README.md) - Este arquivo (documentação geral)
+- [`DEPLOY_QUICKSTART.md`](./DEPLOY_QUICKSTART.md) - Deploy rápido na Vercel (5 min)
+- [`DEPLOY.md`](./DEPLOY.md) - Guia completo de deploy
+- [`AUDIO_SETUP.md`](./AUDIO_SETUP.md) - Configuração completa de envio de áudio
+- [`QUICKSTART.md`](./QUICKSTART.md) - Início rápido com áudio (5 min)
+- [`N8N_WEBHOOK_SETUP.md`](./N8N_WEBHOOK_SETUP.md) - Configuração webhook n8n
+- [`REALTIME_SETUP.md`](./REALTIME_SETUP.md) - Configuração Supabase Realtime
+
+### Referência
+- [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) - Solução de problemas
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) - Arquitetura do sistema
+- [`CHANGELOG_AUDIO.md`](./CHANGELOG_AUDIO.md) - Histórico de implementação de áudio

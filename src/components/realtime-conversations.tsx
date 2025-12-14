@@ -17,6 +17,7 @@ function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conve
     if (lead.telefone) {
       const phone = lead.telefone.replace(/\D/g, '')
       leadMap.set(phone, lead)
+      leadMap.set(lead.telefone, lead)
 
       // Variações com/sem código do país
       if (phone.startsWith('55')) {
@@ -61,7 +62,7 @@ function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conve
       messageCount: visibleMessages.length,
       lastMessage: lastMsg?.message?.content || '',
       lastType: lastMsg?.message?.type || 'human',
-      lead
+      lead: lead || null
     }
   })
 }
@@ -77,6 +78,23 @@ export function RealtimeConversations({
   const [selectedSession, setSelectedSession] = useState(initialSession || initialConversations[0]?.session_id)
   const [isLive, setIsLive] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error' | 'polling'>('connecting')
+
+  // Função para atualizar dados
+  const handleUpdateConversations = async () => {
+    try {
+      const [chatsResult, leadsResult] = await Promise.all([
+        supabase.from('chats').select('*').order('id', { ascending: true }),
+        supabase.from('leads').select('*')
+      ])
+
+      if (chatsResult.data && leadsResult.data) {
+        const processed = processConversations(chatsResult.data, leadsResult.data)
+        setConversations(processed)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar dados:', error)
+    }
+  }
 
   useEffect(() => {
     // Função para buscar dados atualizados
@@ -181,6 +199,35 @@ export function RealtimeConversations({
 
   return (
     <div className="flex h-full relative">
+      {/* Indicador de status de conexão */}
+      <div className="absolute top-4 left-4 z-50">
+        {realtimeStatus === 'connected' && (
+          <div className="bg-green-500/20 text-green-500 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 border border-green-500/30">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            Tempo real ativo
+          </div>
+        )}
+        {realtimeStatus === 'polling' && (
+          <div className="bg-yellow-500/20 text-yellow-500 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 border border-yellow-500/30">
+            <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+            Atualizando (3s)
+          </div>
+        )}
+        {realtimeStatus === 'connecting' && (
+          <div className="bg-blue-500/20 text-blue-500 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 border border-blue-500/30">
+            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+            Conectando...
+          </div>
+        )}
+      </div>
+
+      {/* Indicador de nova mensagem */}
+      {isLive && (
+        <div className="absolute top-4 right-4 z-50 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg animate-bounce">
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+          Mensagem nova recebida!
+        </div>
+      )}
 
       <ConversationList
         conversations={conversations}
@@ -189,6 +236,7 @@ export function RealtimeConversations({
       <ChatView
         conversation={selectedConversation}
         session_id={selectedSession}
+        onUpdateConversations={handleUpdateConversations}
       />
     </div>
   )
