@@ -40,8 +40,23 @@ export async function POST(request: Request) {
 
     if (updateError) {
       console.error('Erro ao atualizar stage do lead:', updateError)
+
+      // Verificar se o erro é devido à coluna stage não existir
+      if (updateError.message?.includes('column') && updateError.message?.includes('stage')) {
+        return NextResponse.json(
+          {
+            error: 'Campo "stage" não encontrado no banco de dados. Execute o SQL em KANBAN_MIGRATION.sql no Supabase primeiro.',
+            details: updateError.message
+          },
+          { status: 500 }
+        )
+      }
+
       return NextResponse.json(
-        { error: 'Erro ao atualizar stage no banco de dados' },
+        {
+          error: 'Erro ao atualizar stage no banco de dados',
+          details: updateError.message
+        },
         { status: 500 }
       )
     }

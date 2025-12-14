@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { KanbanBoard } from '@/components/kanban-board'
-import { Loader2, TrendingUp, Users, CheckCircle, XCircle } from 'lucide-react'
+import { Loader2, TrendingUp, Users, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import type { Lead } from '@/lib/types'
 
 type Stage = 'novo' | 'contato' | 'interessado' | 'negociacao' | 'fechado' | 'perdido'
@@ -14,6 +14,7 @@ export default function CRMPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [showSetupWarning, setShowSetupWarning] = useState(false)
 
   useEffect(() => {
     fetchLeads()
@@ -65,8 +66,22 @@ export default function CRMPage() {
         )
       } else {
         const data = await response.json()
-        console.error('Erro ao atualizar stage:', data.error)
-        alert('Erro ao mover lead. Tente novamente.')
+        console.error('Erro ao atualizar stage:', data)
+
+        // Se o erro for sobre campo stage não existir, mostrar aviso
+        if (data.error?.includes('stage') && data.error?.includes('banco de dados')) {
+          setShowSetupWarning(true)
+        }
+
+        // Mostrar erro detalhado
+        const errorMessage = data.details
+          ? `${data.error}\n\nDetalhes: ${data.details}`
+          : data.error || 'Erro ao mover lead. Tente novamente.'
+
+        alert(errorMessage)
+
+        // Recarregar leads para garantir sincronização
+        fetchLeads()
       }
     } catch (error) {
       console.error('Erro ao atualizar stage:', error)
@@ -105,6 +120,34 @@ export default function CRMPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Aviso de configuração */}
+      {showSetupWarning && (
+        <div className="bg-red-500/10 border-l-4 border-red-500 p-4 m-6 mb-0">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="text-red-500 flex-shrink-0" size={24} />
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-500 mb-2">
+                ⚠️ Configuração Necessária - Campo "stage" não encontrado
+              </h3>
+              <p className="text-sm text-[var(--foreground)] mb-3">
+                O CRM Kanban precisa que você execute um SQL no Supabase antes de usar.
+              </p>
+              <ol className="text-sm text-[var(--muted)] space-y-2 mb-3">
+                <li>1. Acesse: <a href="https://supabase.com/dashboard" target="_blank" className="text-[var(--primary)] underline">Supabase Dashboard</a></li>
+                <li>2. Vá em <strong>SQL Editor</strong> (menu lateral)</li>
+                <li>3. Cole e execute o SQL que está no arquivo <code className="bg-[var(--background)] px-2 py-1 rounded">KANBAN_MIGRATION.sql</code></li>
+              </ol>
+              <button
+                onClick={() => setShowSetupWarning(false)}
+                className="px-3 py-1 bg-red-500/20 text-red-500 rounded hover:bg-red-500/30 text-sm"
+              >
+                Fechar aviso
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="p-6 border-b border-[var(--border)] bg-[var(--card)]">
         <div className="flex items-center justify-between mb-4">
