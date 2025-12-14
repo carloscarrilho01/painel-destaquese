@@ -1,30 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SendMessagePayload } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { phone, message, clientName, messageType = 'text', mediaUrl } = body as SendMessagePayload
+    const { phone, message, clientName } = body
 
     // Validações básicas
-    if (!phone) {
+    if (!phone || !message) {
       return NextResponse.json(
-        { error: 'Telefone é obrigatório' },
-        { status: 400 }
-      )
-    }
-
-    // Validar conforme tipo de mensagem
-    if (messageType === 'text' && !message) {
-      return NextResponse.json(
-        { error: 'Mensagem de texto é obrigatória' },
-        { status: 400 }
-      )
-    }
-
-    if ((messageType === 'audio' || messageType === 'image' || messageType === 'document') && !mediaUrl) {
-      return NextResponse.json(
-        { error: 'URL da mídia é obrigatória para este tipo de mensagem' },
+        { error: 'Telefone e mensagem são obrigatórios' },
         { status: 400 }
       )
     }
@@ -42,9 +27,7 @@ export async function POST(request: NextRequest) {
     // Payload para enviar ao n8n
     const webhookPayload = {
       phone,
-      messageType,
       message,
-      mediaUrl,
       clientName,
       timestamp: new Date().toISOString(),
       source: 'painel-admin'
@@ -71,10 +54,25 @@ export async function POST(request: NextRequest) {
 
     const responseData = await webhookResponse.json().catch(() => ({}))
 
+    // Salvar mensagem no banco de dados para aparecer na lista
+    try {
+      await supabase.from('chats').insert({
+        session_id: phone,
+        message: {
+          type: 'human',
+          content: message
+        }
+      })
+    } catch (dbError) {
+      console.error('Erro ao salvar mensagem no banco:', dbError)
+      // Não falhar a requisição se apenas o banco falhar
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Mensagem enviada com sucesso',
-      webhookResponse: responseData
+      webhookResponse: responseData,
+      sessionId: phone
     })
 
   } catch (error) {

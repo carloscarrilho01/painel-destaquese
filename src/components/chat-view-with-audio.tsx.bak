@@ -13,11 +13,9 @@ function isToolMessage(content: string): boolean {
 export function ChatView({
   conversation,
   session_id,
-  onUpdateConversations,
 }: {
   conversation?: Conversation
   session_id?: string
-  onUpdateConversations?: () => void | Promise<void>
 }) {
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -57,11 +55,6 @@ export function ChatView({
       if (response.ok) {
         setFeedback({ type: 'success', text: 'Mensagem enviada com sucesso!' })
         setMessage('') // Limpar campo
-
-        // Atualizar conversações
-        if (onUpdateConversations) {
-          await onUpdateConversations()
-        }
 
         // Limpar feedback após 3 segundos
         setTimeout(() => setFeedback(null), 3000)
@@ -126,11 +119,6 @@ export function ChatView({
         setFeedback({ type: 'success', text: 'Áudio enviado com sucesso!' })
         setMode('text') // Voltar para modo texto
 
-        // Atualizar conversações
-        if (onUpdateConversations) {
-          await onUpdateConversations()
-        }
-
         setTimeout(() => setFeedback(null), 3000)
       } else {
         setFeedback({ type: 'error', text: data.error || 'Erro ao enviar áudio' })
@@ -193,11 +181,6 @@ export function ChatView({
         }
         setFeedback({ type: 'success', text: `${labels[mediaType]} enviado com sucesso!` })
         setMode('text') // Voltar para modo texto
-
-        // Atualizar conversações
-        if (onUpdateConversations) {
-          await onUpdateConversations()
-        }
 
         setTimeout(() => setFeedback(null), 3000)
       } else {
