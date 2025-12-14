@@ -17,6 +17,7 @@ export type Lead = {
   last_followup: string | null
   interesse: string | null
   interessado: boolean
+  stage?: 'novo' | 'contato' | 'interessado' | 'negociacao' | 'fechado' | 'perdido'
 }
 
 export type Conversation = {
