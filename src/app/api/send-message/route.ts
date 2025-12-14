@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,10 +54,25 @@ export async function POST(request: NextRequest) {
 
     const responseData = await webhookResponse.json().catch(() => ({}))
 
+    // Salvar mensagem no banco de dados para aparecer na lista
+    try {
+      await supabase.from('chats').insert({
+        session_id: phone,
+        message: {
+          type: 'human',
+          content: message
+        }
+      })
+    } catch (dbError) {
+      console.error('Erro ao salvar mensagem no banco:', dbError)
+      // Não falhar a requisição se apenas o banco falhar
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Mensagem enviada com sucesso',
-      webhookResponse: responseData
+      webhookResponse: responseData,
+      sessionId: phone
     })
 
   } catch (error) {

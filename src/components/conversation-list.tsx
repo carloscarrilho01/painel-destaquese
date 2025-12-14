@@ -27,10 +27,18 @@ export function ConversationList({
     )
   })
 
-  const handleConversationCreated = (sessionId: string) => {
-    // Redirecionar para a nova conversa
+  const handleConversationCreated = async (sessionId: string) => {
+    // Aguardar um pouco para o banco processar a inserção
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    // Forçar reload completo da página para atualizar a lista
     router.push(`/conversas?session=${sessionId}`)
     router.refresh()
+
+    // Fallback: reload completo se a atualização não funcionar
+    setTimeout(() => {
+      window.location.href = `/conversas?session=${sessionId}`
+    }, 1000)
   }
 
   return (
