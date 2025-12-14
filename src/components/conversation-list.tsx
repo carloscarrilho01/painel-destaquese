@@ -63,12 +63,19 @@ export function ConversationList({
                     {initials}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium truncate">{displayName}</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="font-medium truncate">
+                        {conv.clientName || 'Sem nome'}
+                      </p>
                       <span className="text-xs text-[var(--muted)]">
                         {conv.messageCount} msgs
                       </span>
                     </div>
+                    {conv.clientName && (
+                      <p className="text-xs text-[var(--muted)] truncate mb-1">
+                        {conv.session_id}
+                      </p>
+                    )}
                     <p className="text-sm text-[var(--muted)] truncate">
                       {conv.lastType === 'ai' ? 'Agente: ' : 'Cliente: '}
                       {conv.lastMessage.slice(0, 30)}...
