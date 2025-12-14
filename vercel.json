@@ -3,11 +3,14 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["gru1"],
+  "regions": [
+    "gru1"
+  ],
   "git": {
     "deploymentEnabled": {
       "main": true,
-      "awesome-visvesvaraya": true
+      "awesome-visvesvaraya": true,
+      "sharp-murdock": true
     }
   }
 }
