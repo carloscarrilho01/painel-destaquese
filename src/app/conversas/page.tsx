@@ -72,7 +72,7 @@ async function getConversations() {
       messageCount: visibleMessages.length,
       lastMessage: lastMsg?.message?.content || '',
       lastType: lastMsg?.message?.type || 'human',
-      lead: lead || null
+      lead: lead || undefined
     }
   })
 }

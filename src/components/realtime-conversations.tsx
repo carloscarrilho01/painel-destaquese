@@ -62,7 +62,7 @@ function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conve
       messageCount: visibleMessages.length,
       lastMessage: lastMsg?.message?.content || '',
       lastType: lastMsg?.message?.type || 'human',
-      lead: lead || null
+      lead: lead || undefined
     }
   })
 }
