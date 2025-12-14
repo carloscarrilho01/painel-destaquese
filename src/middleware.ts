@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
+  // TEMPORARIAMENTE DESABILITADO - Middleware causando problemas de autenticação
+  // Retornar sem verificação até corrigir a integração com Supabase
+  return NextResponse.next()
+
+  /*
   // Pegar token de autenticação do cookie
   const token = req.cookies.get('sb-access-token')?.value ||
                 req.cookies.get('sb-prlqvvgpgwqmldscgqwa-auth-token')?.value
@@ -23,6 +28,7 @@ export async function middleware(req: NextRequest) {
   }
 
   return NextResponse.next()
+  */
 }
 
 export const config = {

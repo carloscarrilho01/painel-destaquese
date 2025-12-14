@@ -18,13 +18,19 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
+    console.log('🔐 Tentando fazer login...')
+    console.log('📧 Email:', email)
+
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
+      console.log('📊 Resposta do Supabase:', { data, error: signInError })
+
       if (signInError) {
+        console.error('❌ Erro de autenticação:', signInError)
         if (signInError.message.includes('Invalid login credentials')) {
           setError('Email ou senha incorretos')
         } else if (signInError.message.includes('Email not confirmed')) {
@@ -36,12 +42,20 @@ export default function LoginPage() {
       }
 
       if (data.user) {
+        console.log('✅ Login bem-sucedido!')
+        console.log('👤 Usuário:', data.user.email)
+        console.log('🔑 Session:', data.session?.access_token ? 'Token criado' : 'Sem token')
+
         // Login bem-sucedido, redirecionar para dashboard
+        console.log('🔄 Redirecionando para dashboard...')
         router.push('/')
         router.refresh()
+      } else {
+        console.warn('⚠️ Login sem erro mas sem usuário')
+        setError('Erro desconhecido ao fazer login')
       }
     } catch (error) {
-      console.error('Erro ao fazer login:', error)
+      console.error('💥 Erro ao fazer login:', error)
       setError('Erro ao conectar com o servidor. Tente novamente.')
     } finally {
       setLoading(false)
