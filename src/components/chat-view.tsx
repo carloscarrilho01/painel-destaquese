@@ -112,7 +112,15 @@ export function ChatView({
       <div ref={messagesContainerRef} className="flex-1 overflow-auto p-4 space-y-4">
         {messagesToShow.map((chat) => {
           const isHuman = chat.message.type === 'human'
-          const hasImage = chat.message.additional_kwargs?.image
+
+          // Verificar diferentes locais onde a imagem pode estar
+          const imageUrl = chat.message.additional_kwargs?.image ||
+                          (chat.message as any).image ||
+                          (chat.message as any).media_url ||
+                          (chat.message as any).mediaUrl
+
+          // Verificar se o conteúdo é um nome de arquivo de imagem
+          const isImageFilename = chat.message.content?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
 
           return (
             <div
@@ -137,19 +145,30 @@ export function ChatView({
                   </span>
                 </div>
 
+                {/* Debug: Mostrar estrutura do objeto se for imagem */}
+                {isImageFilename && !imageUrl && (
+                  <pre className="text-xs mb-2 bg-black/20 p-2 rounded overflow-auto">
+                    {JSON.stringify(chat.message, null, 2)}
+                  </pre>
+                )}
+
                 {/* Renderizar imagem se existir */}
-                {hasImage && (
+                {imageUrl && (
                   <div className="mb-2">
                     <img
-                      src={hasImage as string}
+                      src={imageUrl as string}
                       alt={chat.message.content}
                       className="rounded-lg max-w-full h-auto max-h-96 object-contain"
+                      onError={(e) => {
+                        console.error('Erro ao carregar imagem:', imageUrl)
+                        console.log('Dados completos da mensagem:', chat.message)
+                      }}
                     />
                   </div>
                 )}
 
                 {/* Renderizar texto se não for apenas nome de arquivo */}
-                {chat.message.content && !chat.message.content.match(/\.(jpg|jpeg|png|gif|webp)$/i) && (
+                {chat.message.content && !isImageFilename && (
                   <p className="text-sm whitespace-pre-wrap">{chat.message.content}</p>
                 )}
               </div>
