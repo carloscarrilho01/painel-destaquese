@@ -13,11 +13,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validar tipo de arquivo
-    const validTypes = ['audio/ogg', 'audio/mpeg', 'audio/wav', 'audio/webm', 'audio/mp4']
-    if (!validTypes.includes(audioFile.type)) {
+    // Validar tipo de arquivo (mais flexível)
+    const validExtensions = ['ogg', 'mp3', 'wav', 'webm', 'mp4', 'mpeg', 'm4a', 'aac', 'opus']
+    const fileExtension = audioFile.name.split('.').pop()?.toLowerCase()
+
+    const isValidType = audioFile.type.startsWith('audio/') || validExtensions.includes(fileExtension || '')
+
+    if (!isValidType) {
       return NextResponse.json(
-        { error: 'Tipo de arquivo inválido. Use OGG, MP3, WAV, WEBM ou MP4' },
+        { error: `Tipo de arquivo inválido. Use arquivos de áudio (OGG, MP3, WAV, WEBM, MP4, etc). Tipo recebido: ${audioFile.type}` },
         { status: 400 }
       )
     }
