@@ -4,10 +4,12 @@ import { useState, useMemo } from 'react'
 import {
   Search, Users, TrendingUp, Phone, Calendar,
   Filter, LayoutGrid, List, Star, Clock, CheckCircle,
-  UserCheck, UserX, Target, BarChart3, GripVertical
+  UserCheck, UserX, Target, BarChart3, GripVertical,
+  Edit2, Trash2, Plus
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { LeadFormModal } from './lead-form-modal'
 
 type Lead = {
   id: string
@@ -31,6 +33,11 @@ export function CRMDashboard({ leads: initialLeads }: { leads: Lead[] }) {
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null)
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null)
   const [updating, setUpdating] = useState(false)
+
+  // Estados do modal
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
   // Calcular estatísticas
   const stats = useMemo(() => {
@@ -165,6 +172,86 @@ export function CRMDashboard({ leads: initialLeads }: { leads: Lead[] }) {
       alert('Erro ao mover lead. Tente novamente.')
     } finally {
       setUpdating(false)
+    }
+  }
+
+  // Abrir modal para criar lead
+  const handleCreateLead = () => {
+    setModalMode('create')
+    setSelectedLead(null)
+    setIsModalOpen(true)
+  }
+
+  // Abrir modal para editar lead
+  const handleEditLead = (lead: Lead) => {
+    setModalMode('edit')
+    setSelectedLead(lead)
+    setIsModalOpen(true)
+  }
+
+  // Deletar lead
+  const handleDeleteLead = async (leadId: string) => {
+    if (!confirm('Tem certeza que deseja excluir este lead?')) {
+      return
+    }
+
+    // Atualização otimista
+    const leadToDelete = leads.find(l => l.id === leadId)
+    setLeads(prevLeads => prevLeads.filter(l => l.id !== leadId))
+
+    try {
+      const response = await fetch(`/api/update-lead?id=${leadId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        throw new Error('Falha ao deletar lead')
+      }
+    } catch (error) {
+      console.error('Erro ao deletar lead:', error)
+      // Reverter em caso de erro
+      if (leadToDelete) {
+        setLeads(prevLeads => [...prevLeads, leadToDelete])
+      }
+      alert('Erro ao excluir lead. Tente novamente.')
+    }
+  }
+
+  // Salvar lead (criar ou editar)
+  const handleSaveLead = async (leadData: Partial<Lead>) => {
+    if (modalMode === 'create') {
+      // Criar novo lead
+      const response = await fetch('/api/update-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead: leadData })
+      })
+
+      if (!response.ok) {
+        throw new Error('Falha ao criar lead')
+      }
+
+      const data = await response.json()
+      setLeads(prevLeads => [data.lead, ...prevLeads])
+    } else {
+      // Editar lead existente
+      const response = await fetch('/api/update-lead', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: leadData.id,
+          updates: leadData
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Falha ao atualizar lead')
+      }
+
+      const data = await response.json()
+      setLeads(prevLeads =>
+        prevLeads.map(l => (l.id === data.lead.id ? data.lead : l))
+      )
     }
   }
 
@@ -335,6 +422,15 @@ export function CRMDashboard({ leads: initialLeads }: { leads: Lead[] }) {
               <List size={18} />
             </button>
           </div>
+
+          {/* Botão Adicionar Lead */}
+          <button
+            onClick={handleCreateLead}
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors font-medium"
+          >
+            <Plus size={18} />
+            <span className="hidden sm:inline">Adicionar Lead</span>
+          </button>
         </div>
       </div>
 
@@ -354,10 +450,25 @@ export function CRMDashboard({ leads: initialLeads }: { leads: Lead[] }) {
           onDropLead={handleDropLead}
           draggedLead={draggedLead}
           setDraggedLead={setDraggedLead}
+          onEditLead={handleEditLead}
+          onDeleteLead={handleDeleteLead}
         />
       ) : (
-        <ListView leads={filteredLeads} />
+        <ListView
+          leads={filteredLeads}
+          onEditLead={handleEditLead}
+          onDeleteLead={handleDeleteLead}
+        />
       )}
+
+      {/* Modal de Formulário */}
+      <LeadFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveLead}
+        lead={selectedLead}
+        mode={modalMode}
+      />
     </div>
   )
 }
@@ -368,13 +479,17 @@ function KanbanView({
   pipelineConfig,
   onDropLead,
   draggedLead,
-  setDraggedLead
+  setDraggedLead,
+  onEditLead,
+  onDeleteLead
 }: {
   leadsByPipeline: Record<Pipeline, Lead[]>
   pipelineConfig: Record<Pipeline, any>
   onDropLead: (lead: Lead, pipeline: Pipeline) => void
   draggedLead: Lead | null
   setDraggedLead: (lead: Lead | null) => void
+  onEditLead: (lead: Lead) => void
+  onDeleteLead: (leadId: string) => void
 }) {
   const [dragOverPipeline, setDragOverPipeline] = useState<Pipeline | null>(null)
 
@@ -478,6 +593,32 @@ function KanbanView({
                           {format(new Date(lead.created_at), 'dd/MM', { locale: ptBR })}
                         </span>
                       </div>
+
+                      {/* Botões de ação */}
+                      <div className="flex items-center gap-1 mt-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onEditLead(lead)
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20 transition-colors text-xs"
+                          title="Editar lead"
+                        >
+                          <Edit2 size={12} />
+                          <span>Editar</span>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onDeleteLead(lead.id)
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20 transition-colors text-xs"
+                          title="Excluir lead"
+                        >
+                          <Trash2 size={12} />
+                          <span>Excluir</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -497,7 +638,15 @@ function KanbanView({
 }
 
 // Componente de visualização em lista
-function ListView({ leads }: { leads: Lead[] }) {
+function ListView({
+  leads,
+  onEditLead,
+  onDeleteLead
+}: {
+  leads: Lead[]
+  onEditLead: (lead: Lead) => void
+  onDeleteLead: (leadId: string) => void
+}) {
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
@@ -510,6 +659,7 @@ function ListView({ leads }: { leads: Lead[] }) {
               <th className="text-left p-4 text-sm font-semibold">Follow-up</th>
               <th className="text-left p-4 text-sm font-semibold">Status</th>
               <th className="text-left p-4 text-sm font-semibold">Criado em</th>
+              <th className="text-left p-4 text-sm font-semibold">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
@@ -542,6 +692,24 @@ function ListView({ leads }: { leads: Lead[] }) {
                 </td>
                 <td className="p-4 text-sm text-[var(--muted)]">
                   {format(new Date(lead.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                </td>
+                <td className="p-4">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onEditLead(lead)}
+                      className="p-1.5 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20 transition-colors"
+                      title="Editar lead"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      onClick={() => onDeleteLead(lead.id)}
+                      className="p-1.5 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20 transition-colors"
+                      title="Excluir lead"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
