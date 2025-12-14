@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Phone, Calendar, Star } from 'lucide-react'
+import { Search, Phone, Calendar, Star, Play, Pause } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -17,9 +17,46 @@ type Lead = {
   interessado: boolean
 }
 
-export function LeadsTable({ leads }: { leads: Lead[] }) {
+export function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
+  const [leads, setLeads] = useState(initialLeads)
   const [search, setSearch] = useState('')
   const [filterInteressado, setFilterInteressado] = useState<boolean | null>(null)
+  const [loadingLeadId, setLoadingLeadId] = useState<string | null>(null)
+
+  const handleToggleTrava = async (leadId: string, currentTrava: boolean) => {
+    setLoadingLeadId(leadId)
+    try {
+      const response = await fetch('/api/toggle-trava', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          leadId,
+          trava: !currentTrava
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Falha ao atualizar status')
+      }
+
+      const result = await response.json()
+
+      // Atualizar o estado local
+      setLeads(prevLeads =>
+        prevLeads.map(lead =>
+          lead.id === leadId ? { ...lead, trava: !currentTrava } : lead
+        )
+      )
+
+    } catch (error) {
+      console.error('Erro ao toggle trava:', error)
+      alert('Erro ao atualizar status do agente')
+    } finally {
+      setLoadingLeadId(null)
+    }
+  }
 
   const filtered = leads.filter(lead => {
     const matchesSearch =
@@ -91,12 +128,13 @@ export function LeadsTable({ leads }: { leads: Lead[] }) {
               <th className="text-left p-4 text-sm font-medium text-[var(--muted)]">Status</th>
               <th className="text-left p-4 text-sm font-medium text-[var(--muted)]">Followups</th>
               <th className="text-left p-4 text-sm font-medium text-[var(--muted)]">Criado em</th>
+              <th className="text-center p-4 text-sm font-medium text-[var(--muted)]">Agente</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-[var(--muted)]">
+                <td colSpan={7} className="p-8 text-center text-[var(--muted)]">
                   Nenhum lead encontrado
                 </td>
               </tr>
@@ -145,6 +183,37 @@ export function LeadsTable({ leads }: { leads: Lead[] }) {
                     <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
                       <Calendar size={14} />
                       {format(new Date(lead.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => handleToggleTrava(lead.id, lead.trava)}
+                        disabled={loadingLeadId === lead.id}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                          lead.trava
+                            ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
+                            : 'bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30'
+                        } ${loadingLeadId === lead.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title={lead.trava ? 'Clique para retomar agente' : 'Clique para pausar agente'}
+                      >
+                        {loadingLeadId === lead.id ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            <span>...</span>
+                          </>
+                        ) : lead.trava ? (
+                          <>
+                            <Play size={16} />
+                            <span>Pausado</span>
+                          </>
+                        ) : (
+                          <>
+                            <Pause size={16} />
+                            <span>Ativo</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </td>
                 </tr>
