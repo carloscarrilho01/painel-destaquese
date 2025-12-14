@@ -250,6 +250,7 @@ export function ChatView({
       <div ref={messagesContainerRef} className="flex-1 overflow-auto p-4 space-y-4">
         {messagesToShow.map((chat) => {
           const isHuman = chat.message.type === 'human'
+          const hasImage = chat.message.additional_kwargs?.image
 
           return (
             <div
@@ -273,7 +274,22 @@ export function ChatView({
                     {isHuman ? 'Cliente' : 'Agente'}
                   </span>
                 </div>
-                <p className="text-sm whitespace-pre-wrap">{chat.message.content}</p>
+
+                {/* Renderizar imagem se existir */}
+                {hasImage && (
+                  <div className="mb-2">
+                    <img
+                      src={hasImage as string}
+                      alt={chat.message.content}
+                      className="rounded-lg max-w-full h-auto max-h-96 object-contain"
+                    />
+                  </div>
+                )}
+
+                {/* Renderizar texto se não for apenas nome de arquivo */}
+                {chat.message.content && !chat.message.content.match(/\.(jpg|jpeg|png|gif|webp)$/i) && (
+                  <p className="text-sm whitespace-pre-wrap">{chat.message.content}</p>
+                )}
               </div>
             </div>
           )
