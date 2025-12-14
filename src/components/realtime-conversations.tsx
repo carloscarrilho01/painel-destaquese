@@ -96,29 +96,6 @@ export function RealtimeConversations({
     }
   }
 
-  // Toggle trava do agente
-  const handleToggleTrava = async (lead: Lead) => {
-    const newTravaValue = !lead.trava
-
-    try {
-      const response = await fetch('/api/update-lead', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadId: lead.id,
-          updates: { trava: newTravaValue }
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Falha ao atualizar trava')
-      }
-    } catch (error) {
-      console.error('Erro ao atualizar trava:', error)
-      alert('Erro ao pausar/despausar agente. Tente novamente.')
-    }
-  }
-
   useEffect(() => {
     // Função para buscar dados atualizados
     const fetchData = async () => {
@@ -255,12 +232,11 @@ export function RealtimeConversations({
       <ConversationList
         conversations={conversations}
         selectedSession={selectedSession}
-        onToggleTrava={handleToggleTrava}
-        onUpdateConversations={handleUpdateConversations}
       />
       <ChatView
         conversation={selectedConversation}
         session_id={selectedSession}
+        onUpdateConversations={handleUpdateConversations}
       />
     </div>
   )
