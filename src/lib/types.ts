@@ -17,7 +17,7 @@ export type Conversation = {
   lastType: string
 }
 
-export type MessageType = 'text' | 'audio' | 'image' | 'document'
+export type MessageType = 'text' | 'audio' | 'image' | 'document' | 'video'
 
 export type SendMessagePayload = {
   phone: string

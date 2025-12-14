@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { User, Bot, Send, Loader2 } from 'lucide-react'
 import type { Conversation, MessageType } from '@/lib/types'
 import { AudioRecorder } from './audio-recorder'
-import { FileUploader } from './file-uploader'
+import { MediaUploader } from './media-uploader'
 
 function isToolMessage(content: string): boolean {
   return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
@@ -20,7 +20,7 @@ export function ChatView({
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const [mode, setMode] = useState<'text' | 'audio' | 'file'>('text')
+  const [mode, setMode] = useState<'text' | 'audio' | 'image' | 'document'>('text')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
@@ -131,7 +131,7 @@ export function ChatView({
     }
   }
 
-  const handleSendFile = async (file: File) => {
+  const handleSendMedia = async (file: File, mediaType: MessageType) => {
     if (!session_id || sending) return
 
     setSending(true)
@@ -140,9 +140,10 @@ export function ChatView({
     try {
       // 1. Upload do arquivo para Supabase
       const formData = new FormData()
-      formData.append('audio', file)
+      formData.append('file', file)
+      formData.append('type', mediaType)
 
-      const uploadResponse = await fetch('/api/upload-audio', {
+      const uploadResponse = await fetch('/api/upload-media', {
         method: 'POST',
         body: formData
       })
@@ -161,9 +162,9 @@ export function ChatView({
         },
         body: JSON.stringify({
           phone: session_id,
-          messageType: 'audio' as MessageType,
+          messageType: mediaType,
           message: file.name,
-          mediaUrl: uploadData.audioUrl,
+          mediaUrl: uploadData.mediaUrl,
           clientName: conversation?.clientName || session_id
         })
       })
@@ -171,7 +172,14 @@ export function ChatView({
       const data = await response.json()
 
       if (response.ok) {
-        setFeedback({ type: 'success', text: 'Arquivo enviado com sucesso!' })
+        const labels = {
+          audio: 'Áudio',
+          image: 'Imagem',
+          document: 'Documento',
+          video: 'Vídeo',
+          text: 'Mensagem'
+        }
+        setFeedback({ type: 'success', text: `${labels[mediaType]} enviado com sucesso!` })
         setMode('text') // Voltar para modo texto
 
         setTimeout(() => setFeedback(null), 3000)
@@ -279,13 +287,23 @@ export function ChatView({
           />
         )}
 
-        {/* Modo upload de arquivo */}
-        {mode === 'file' && (
-          <FileUploader
-            onFileSelect={handleSendFile}
+        {/* Modo upload de imagem */}
+        {mode === 'image' && (
+          <MediaUploader
+            onFileSelect={handleSendMedia}
             onCancel={() => setMode('text')}
             disabled={sending}
-            acceptedTypes="audio/*"
+            mediaType="image"
+          />
+        )}
+
+        {/* Modo upload de documento */}
+        {mode === 'document' && (
+          <MediaUploader
+            onFileSelect={handleSendMedia}
+            onCancel={() => setMode('text')}
+            disabled={sending}
+            mediaType="document"
           />
         )}
 
@@ -316,15 +334,33 @@ export function ChatView({
               </svg>
             </button>
 
-            {/* Botão de anexar arquivo */}
+            {/* Botão de anexar imagem */}
             <button
-              onClick={() => setMode('file')}
+              onClick={() => setMode('image')}
               disabled={sending}
               className="bg-[var(--primary)] text-white p-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Anexar arquivo de áudio"
+              title="Enviar imagem"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                <circle cx="9" cy="9" r="2"/>
+                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+              </svg>
+            </button>
+
+            {/* Botão de anexar documento */}
+            <button
+              onClick={() => setMode('document')}
+              disabled={sending}
+              className="bg-[var(--primary)] text-white p-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Enviar documento"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
+                <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+                <path d="M10 9H8"/>
+                <path d="M16 13H8"/>
+                <path d="M16 17H8"/>
               </svg>
             </button>
 
