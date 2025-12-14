@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { User, Bot, Send, Loader2 } from 'lucide-react'
+import { User, Bot, Send, Loader2, Pause, Play } from 'lucide-react'
 import type { Conversation } from '@/lib/types'
 
 function isToolMessage(content: string): boolean {
@@ -18,8 +18,15 @@ export function ChatView({
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [togglingAgent, setTogglingAgent] = useState(false)
+  const [agentPaused, setAgentPaused] = useState(conversation?.lead?.trava || false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+
+  // Atualizar status de agente pausado quando conversation mudar
+  useEffect(() => {
+    setAgentPaused(conversation?.lead?.trava || false)
+  }, [conversation?.lead?.trava])
 
   // Auto-scroll para a última mensagem quando houver novas mensagens
   useEffect(() => {
@@ -73,6 +80,46 @@ export function ChatView({
     }
   }
 
+  const handleToggleAgent = async () => {
+    if (!session_id || togglingAgent) return
+
+    setTogglingAgent(true)
+    setFeedback(null)
+
+    try {
+      const response = await fetch('/api/toggle-agent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          telefone: session_id,
+          trava: !agentPaused
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setAgentPaused(!agentPaused)
+        setFeedback({
+          type: 'success',
+          text: data.message || (!agentPaused ? 'Agente pausado' : 'Agente reativado')
+        })
+
+        // Limpar feedback após 3 segundos
+        setTimeout(() => setFeedback(null), 3000)
+      } else {
+        setFeedback({ type: 'error', text: data.error || 'Erro ao alternar status do agente' })
+      }
+    } catch (error) {
+      console.error('Erro ao alternar status do agente:', error)
+      setFeedback({ type: 'error', text: 'Erro de conexão ao alternar status do agente' })
+    } finally {
+      setTogglingAgent(false)
+    }
+  }
+
   if (!conversation) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[var(--background)]">
@@ -96,16 +143,52 @@ export function ChatView({
   return (
     <div className="flex-1 flex flex-col bg-[var(--background)]">
       <div className="p-4 border-b border-[var(--border)] bg-[var(--card)]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[var(--primary)] rounded-full flex items-center justify-center text-white font-semibold">
-            {initials}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[var(--primary)] rounded-full flex items-center justify-center text-white font-semibold">
+              {initials}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-medium">{displayName}</p>
+                {agentPaused && (
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/30">
+                    Agente pausado
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-[var(--muted)]">
+                {conversation.messageCount} mensagens
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="font-medium">{displayName}</p>
-            <p className="text-sm text-[var(--muted)]">
-              {conversation.messageCount} mensagens
-            </p>
-          </div>
+
+          <button
+            onClick={handleToggleAgent}
+            disabled={togglingAgent}
+            className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
+              agentPaused
+                ? 'bg-green-500/10 text-green-500 border border-green-500/30 hover:bg-green-500/20'
+                : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 hover:bg-yellow-500/20'
+            }`}
+          >
+            {togglingAgent ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Processando...</span>
+              </>
+            ) : agentPaused ? (
+              <>
+                <Play size={16} />
+                <span>Reativar Agente</span>
+              </>
+            ) : (
+              <>
+                <Pause size={16} />
+                <span>Pausar Agente</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
