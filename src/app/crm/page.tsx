@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { KanbanBoard } from '@/components/kanban-board'
-import { Loader2, TrendingUp, Users, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { AddLeadModal } from '@/components/add-lead-modal'
+import { Loader2, TrendingUp, Users, CheckCircle, XCircle, AlertCircle, UserPlus } from 'lucide-react'
 import type { Lead } from '@/lib/types'
 
 type Stage = 'novo' | 'contato' | 'interessado' | 'negociacao' | 'fechado' | 'perdido'
@@ -15,6 +16,7 @@ export default function CRMPage() {
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const [showSetupWarning, setShowSetupWarning] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
 
   useEffect(() => {
     fetchLeads()
@@ -158,12 +160,22 @@ export default function CRMPage() {
             </p>
           </div>
 
-          {updating && (
-            <div className="flex items-center gap-2 text-[var(--primary)]">
-              <Loader2 size={16} className="animate-spin" />
-              <span className="text-sm">Atualizando...</span>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {updating && (
+              <div className="flex items-center gap-2 text-[var(--primary)]">
+                <Loader2 size={16} className="animate-spin" />
+                <span className="text-sm">Atualizando...</span>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="bg-[var(--primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-2"
+            >
+              <UserPlus size={18} />
+              <span>Adicionar Lead</span>
+            </button>
+          </div>
         </div>
 
         {/* Estatísticas */}
@@ -218,6 +230,13 @@ export default function CRMPage() {
           onLeadClick={handleLeadClick}
         />
       </div>
+
+      {/* Modal Adicionar Lead */}
+      <AddLeadModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onLeadAdded={fetchLeads}
+      />
     </div>
   )
 }
