@@ -5,7 +5,7 @@ import {
   Search, Users, TrendingUp, Phone, Calendar,
   Filter, LayoutGrid, List, Star, Clock, CheckCircle,
   UserCheck, UserX, Target, BarChart3, GripVertical,
-  Edit2, Trash2, Plus
+  Edit2, Trash2, Plus, Pause, Play
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -214,6 +214,45 @@ export function CRMDashboard({ leads: initialLeads }: { leads: Lead[] }) {
         setLeads(prevLeads => [...prevLeads, leadToDelete])
       }
       alert('Erro ao excluir lead. Tente novamente.')
+    }
+  }
+
+  // Toggle trava do agente (pausar/despausar)
+  const handleToggleTrava = async (lead: Lead) => {
+    const newTravaValue = !lead.trava
+
+    // Atualização otimista
+    setLeads(prevLeads =>
+      prevLeads.map(l =>
+        l.id === lead.id ? { ...l, trava: newTravaValue } : l
+      )
+    )
+
+    try {
+      const response = await fetch('/api/update-lead', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: lead.id,
+          updates: { trava: newTravaValue }
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Falha ao atualizar trava')
+      }
+
+      const data = await response.json()
+      setLeads(prevLeads =>
+        prevLeads.map(l => (l.id === lead.id ? data.lead : l))
+      )
+    } catch (error) {
+      console.error('Erro ao atualizar trava:', error)
+      // Reverter em caso de erro
+      setLeads(prevLeads =>
+        prevLeads.map(l => (l.id === lead.id ? lead : l))
+      )
+      alert('Erro ao pausar/despausar agente. Tente novamente.')
     }
   }
 
@@ -452,12 +491,14 @@ export function CRMDashboard({ leads: initialLeads }: { leads: Lead[] }) {
           setDraggedLead={setDraggedLead}
           onEditLead={handleEditLead}
           onDeleteLead={handleDeleteLead}
+          onToggleTrava={handleToggleTrava}
         />
       ) : (
         <ListView
           leads={filteredLeads}
           onEditLead={handleEditLead}
           onDeleteLead={handleDeleteLead}
+          onToggleTrava={handleToggleTrava}
         />
       )}
 
@@ -481,7 +522,8 @@ function KanbanView({
   draggedLead,
   setDraggedLead,
   onEditLead,
-  onDeleteLead
+  onDeleteLead,
+  onToggleTrava
 }: {
   leadsByPipeline: Record<Pipeline, Lead[]>
   pipelineConfig: Record<Pipeline, any>
@@ -490,6 +532,7 @@ function KanbanView({
   setDraggedLead: (lead: Lead | null) => void
   onEditLead: (lead: Lead) => void
   onDeleteLead: (leadId: string) => void
+  onToggleTrava: (lead: Lead) => void
 }) {
   const [dragOverPipeline, setDragOverPipeline] = useState<Pipeline | null>(null)
 
@@ -554,8 +597,12 @@ function KanbanView({
                   key={lead.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, lead)}
-                  className={`bg-[var(--background)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--primary)] transition-all cursor-grab active:cursor-grabbing ${
-                    draggedLead?.id === lead.id ? 'opacity-50 scale-95' : 'opacity-100'
+                  className={`bg-[var(--background)] border rounded-lg p-3 transition-all cursor-grab active:cursor-grabbing ${
+                    draggedLead?.id === lead.id
+                      ? 'opacity-50 scale-95'
+                      : lead.trava
+                        ? 'opacity-60 border-yellow-500/50 hover:border-yellow-500'
+                        : 'opacity-100 border-[var(--border)] hover:border-[var(--primary)]'
                   }`}
                 >
                   <div className="flex items-start gap-2">
@@ -596,6 +643,21 @@ function KanbanView({
 
                       {/* Botões de ação */}
                       <div className="flex items-center gap-1 mt-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onToggleTrava(lead)
+                          }}
+                          className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded transition-colors text-xs ${
+                            lead.trava
+                              ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
+                              : 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20'
+                          }`}
+                          title={lead.trava ? 'Despausar agente' : 'Pausar agente'}
+                        >
+                          {lead.trava ? <Play size={12} /> : <Pause size={12} />}
+                          <span>{lead.trava ? 'Ativar' : 'Pausar'}</span>
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -641,11 +703,13 @@ function KanbanView({
 function ListView({
   leads,
   onEditLead,
-  onDeleteLead
+  onDeleteLead,
+  onToggleTrava
 }: {
   leads: Lead[]
   onEditLead: (lead: Lead) => void
   onDeleteLead: (leadId: string) => void
+  onToggleTrava: (lead: Lead) => void
 }) {
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
@@ -664,8 +728,24 @@ function ListView({
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
             {leads.map(lead => (
-              <tr key={lead.id} className="hover:bg-[var(--background)] transition-colors">
-                <td className="p-4 text-sm">{lead.nome || 'Sem nome'}</td>
+              <tr
+                key={lead.id}
+                className={`transition-colors ${
+                  lead.trava
+                    ? 'opacity-60 bg-yellow-500/5 hover:bg-yellow-500/10'
+                    : 'hover:bg-[var(--background)]'
+                }`}
+              >
+                <td className="p-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    {lead.nome || 'Sem nome'}
+                    {lead.trava && (
+                      <span className="bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded text-xs">
+                        Pausado
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="p-4 text-sm">{lead.telefone}</td>
                 <td className="p-4 text-sm text-[var(--muted)] truncate max-w-xs">
                   {lead.interesse || '-'}
@@ -695,6 +775,17 @@ function ListView({
                 </td>
                 <td className="p-4">
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onToggleTrava(lead)}
+                      className={`p-1.5 rounded transition-colors ${
+                        lead.trava
+                          ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
+                          : 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20'
+                      }`}
+                      title={lead.trava ? 'Despausar agente' : 'Pausar agente'}
+                    >
+                      {lead.trava ? <Play size={14} /> : <Pause size={14} />}
+                    </button>
                     <button
                       onClick={() => onEditLead(lead)}
                       className="p-1.5 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20 transition-colors"
