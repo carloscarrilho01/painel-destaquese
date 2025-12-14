@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdicionar funcionalidade de iniciar novas conversas pelo painel\n\nImplementa sistema completo para criar conversas com leads existentes\nou novos números diretamente pela interface do painel.\n\nFuncionalidades adicionadas:\n- Botão \"Nova Conversa\" na sidebar de conversas\n- Modal para criar conversa com validação de telefone\n- Coluna \"Ações\" na tabela de leads com botões contextuais\n- API REST para criar leads (/api/leads)\n- Navegação via query parameter (?session=...)\n- Pré-preenchimento automático de dados do lead\n- Redirecionamento automático após criar conversa\n\nComponentes criados:\n- src/components/new-conversation-modal.tsx\n- src/app/api/leads/route.ts\n\nComponentes modificados:\n- src/components/conversation-list.tsx\n- src/components/leads-table.tsx\n- src/components/realtime-conversations.tsx\n- src/app/leads/page.tsx\n\nDocumentação:\n- NOVA_CONVERSA_FEATURE.md - Documentação completa da feature\n- DEPLOY.md - Guia de deploy para produção\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
