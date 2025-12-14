@@ -7,6 +7,18 @@ export type ChatMessage = {
   }
 }
 
+export type Lead = {
+  id: string
+  telefone: string
+  nome: string | null
+  trava: boolean
+  created_at: string
+  followup: number
+  last_followup: string | null
+  interesse: string | null
+  interessado: boolean
+}
+
 export type Conversation = {
   session_id: string
   clientName?: string
@@ -15,4 +27,17 @@ export type Conversation = {
   messageCount: number
   lastMessage: string
   lastType: string
+  lead?: Lead | null
+}
+
+export type MessageType = 'text' | 'audio' | 'image' | 'document' | 'video'
+
+export type SendMessagePayload = {
+  phone: string
+  messageType: MessageType
+  message?: string
+  mediaUrl?: string
+  clientName?: string
+  timestamp?: string
+  source?: string
 }

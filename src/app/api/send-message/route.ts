@@ -1,14 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { SendMessagePayload } from '@/lib/types'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { phone, message, clientName } = body
+    const { phone, message, clientName, messageType = 'text', mediaUrl } = body as SendMessagePayload
 
     // Validações básicas
-    if (!phone || !message) {
+    if (!phone) {
       return NextResponse.json(
-        { error: 'Telefone e mensagem são obrigatórios' },
+        { error: 'Telefone é obrigatório' },
+        { status: 400 }
+      )
+    }
+
+    // Validar conforme tipo de mensagem
+    if (messageType === 'text' && !message) {
+      return NextResponse.json(
+        { error: 'Mensagem de texto é obrigatória' },
+        { status: 400 }
+      )
+    }
+
+    if ((messageType === 'audio' || messageType === 'image' || messageType === 'document') && !mediaUrl) {
+      return NextResponse.json(
+        { error: 'URL da mídia é obrigatória para este tipo de mensagem' },
         { status: 400 }
       )
     }
@@ -26,7 +42,9 @@ export async function POST(request: NextRequest) {
     // Payload para enviar ao n8n
     const webhookPayload = {
       phone,
+      messageType,
       message,
+      mediaUrl,
       clientName,
       timestamp: new Date().toISOString(),
       source: 'painel-admin'

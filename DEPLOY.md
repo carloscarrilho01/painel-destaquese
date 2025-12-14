@@ -1,37 +1,97 @@
-# Guia de Deploy para Produção
+# Deploy na Vercel - Guia Completo
 
-## 🚀 Deploy Rápido (Vercel - Recomendado)
+Este guia mostra como fazer deploy do Painel WhatsApp v3 na Vercel.
 
-### Pré-requisitos
-- ✅ Conta no [Vercel](https://vercel.com)
-- ✅ Conta no [Supabase](https://supabase.com)
-- ✅ Webhook n8n configurado
+## 📋 Pré-requisitos
 
-### Passo 1: Preparar o Repositório
+- [ ] Conta no GitHub
+- [ ] Conta na Vercel (use GitHub para login)
+- [ ] Supabase configurado
+- [ ] Bucket `audios` criado no Supabase Storage (para envio de áudio)
+- [ ] n8n configurado (opcional - para envio de mensagens)
+
+---
+
+## 🚀 Passo 1: Preparar o Repositório
+
+### 1.1 Fazer commit das alterações
 
 ```bash
-# Voltar para o diretório principal (fora do worktree)
-cd C:\Users\carlo\OneDrive\Área de Trabalho\painel.v3
+# Adicionar todos os arquivos
+git add .
 
-# Fazer merge do branch agitated-roentgen para main
-git checkout main
-git merge agitated-roentgen
+# Criar commit
+git commit -m "Adicionar sistema de envio de áudio
 
-# Ou fazer push direto do branch
-git push origin agitated-roentgen
+- Componente de gravação de áudio
+- Componente de upload de arquivo
+- API de upload para Supabase Storage
+- Suporte a mensagens de áudio no webhook n8n
+- Documentação completa"
+
+# Enviar para o GitHub
+git push origin awesome-visvesvaraya
 ```
 
-### Passo 2: Deploy na Vercel
+### 1.2 Criar Pull Request (Opcional)
 
-#### Opção A: Via Interface (Mais Fácil)
+Se você tem uma branch `main`:
 
-1. Acesse [vercel.com](https://vercel.com)
-2. Clique em **"New Project"**
-3. Importe o repositório do GitHub
-4. Configure as variáveis de ambiente (veja abaixo)
-5. Clique em **"Deploy"**
+```bash
+# Via GitHub CLI (se instalado)
+gh pr create --title "Sistema de envio de áudio" --body "Implementação completa do sistema de envio de áudio"
 
-#### Opção B: Via CLI
+# Ou faça via interface do GitHub
+```
+
+---
+
+## 🌐 Passo 2: Deploy na Vercel
+
+### Opção A: Deploy via GitHub (Recomendado)
+
+**1. Acesse:** https://vercel.com/new
+
+**2. Importe seu repositório:**
+- Clique em **Import Git Repository**
+- Selecione o repositório do projeto
+- Clique em **Import**
+
+**3. Configure o projeto:**
+- **Project Name**: `painel-whatsapp-v3` (ou o nome que preferir)
+- **Framework Preset**: Next.js (detectado automaticamente)
+- **Root Directory**: `./` (deixe como está)
+- **Build Command**: `npm run build` (padrão)
+- **Output Directory**: `.next` (padrão)
+
+**4. Adicione as variáveis de ambiente:**
+
+Clique em **Environment Variables** e adicione:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anonima-aqui
+N8N_WEBHOOK_URL=https://seu-n8n.app.n8n.cloud/webhook/send-whatsapp
+```
+
+**IMPORTANTE:** Adicione para todos os ambientes:
+- ✅ Production
+- ✅ Preview
+- ✅ Development
+
+**5. Clique em Deploy**
+
+A Vercel irá:
+1. Clonar o repositório
+2. Instalar dependências
+3. Executar `npm run build`
+4. Fazer deploy
+
+**Deploy leva ~2-3 minutos** ⏱️
+
+---
+
+### Opção B: Deploy via CLI
 
 ```bash
 # Instalar Vercel CLI
@@ -43,398 +103,313 @@ vercel login
 # Deploy
 vercel
 
-# Deploy para produção
-vercel --prod
+# Seguir prompts interativos
 ```
-
-### Passo 3: Configurar Variáveis de Ambiente na Vercel
-
-Na interface da Vercel, vá em **Settings → Environment Variables** e adicione:
-
-```env
-# Supabase (obrigatório)
-NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-# n8n Webhook (obrigatório para enviar mensagens)
-N8N_WEBHOOK_URL=https://seu-n8n.app.n8n.cloud/webhook/send-whatsapp
-
-# Segurança (opcional, mas recomendado)
-N8N_WEBHOOK_SECRET=seu-token-super-secreto
-WEBHOOK_SECRET=seu-token-para-receive-message
-```
-
-**IMPORTANTE:** Marque todas as variáveis `NEXT_PUBLIC_*` para os 3 ambientes:
-- ✅ Production
-- ✅ Preview
-- ✅ Development
 
 ---
 
-## 🐳 Deploy com Docker
+## ⚙️ Passo 3: Configurar Variáveis de Ambiente
 
-### Dockerfile
+### 3.1 Via Dashboard Vercel
 
-Crie um arquivo `Dockerfile` na raiz do projeto:
+1. Acesse seu projeto na Vercel
+2. Vá em **Settings** → **Environment Variables**
+3. Adicione cada variável:
 
-```dockerfile
-FROM node:20-alpine AS base
+| Variável | Valor | Ambiente |
+|----------|-------|----------|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://seu-projeto.supabase.co` | Production, Preview, Development |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `sua-chave-anonima` | Production, Preview, Development |
+| `N8N_WEBHOOK_URL` | `https://seu-n8n.app.n8n.cloud/webhook/send-whatsapp` | Production, Preview, Development |
 
-# Dependências
-FROM base AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci
+### 3.2 Redeploy após adicionar variáveis
 
-# Build
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+Após adicionar as variáveis:
 
-# Variáveis de build (Next.js precisa no build)
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+1. Vá em **Deployments**
+2. Clique nos **três pontos** do último deployment
+3. Clique em **Redeploy**
+4. Marque **Use existing build cache** (opcional - mais rápido)
+5. Clique em **Redeploy**
 
-RUN npm run build
+---
 
-# Produção
-FROM base AS runner
-WORKDIR /app
+## 🔒 Passo 4: Configurar Domínio (Opcional)
 
-ENV NODE_ENV=production
+### 4.1 Usar domínio da Vercel
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-USER nextjs
-
-EXPOSE 3000
-
-ENV PORT=3000
-
-CMD ["node", "server.js"]
+Por padrão, seu projeto estará em:
+```
+https://seu-projeto.vercel.app
 ```
 
-### docker-compose.yml
+### 4.2 Adicionar domínio customizado
 
-```yaml
-version: '3.8'
+1. Vá em **Settings** → **Domains**
+2. Clique em **Add**
+3. Digite seu domínio (ex: `painel.seusite.com`)
+4. Configure DNS conforme instruções
+5. Aguarde propagação (~5-60 min)
 
-services:
-  painel:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
-      - N8N_WEBHOOK_SECRET=${N8N_WEBHOOK_SECRET}
-      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
-    restart: unless-stopped
-```
+---
 
-### Comandos Docker
+## ✅ Passo 5: Verificar Deploy
 
+### 5.1 Checklist pós-deploy
+
+- [ ] Site carrega corretamente
+- [ ] Dashboard mostra estatísticas
+- [ ] Página de conversas funciona
+- [ ] Botão de microfone 🎤 aparece
+- [ ] Botão de anexo 📎 aparece
+- [ ] Variáveis de ambiente configuradas
+
+### 5.2 Testar funcionalidades
+
+**Teste 1: Gravação de Áudio**
+1. Acesse `/conversas`
+2. Selecione uma conversa
+3. Clique no microfone 🎤
+4. Permita acesso ao microfone
+5. Grave e envie
+
+**Teste 2: Upload de Arquivo**
+1. Clique no anexo 📎
+2. Selecione um arquivo de áudio
+3. Envie
+
+**Teste 3: Envio de Texto**
+1. Digite uma mensagem
+2. Pressione Enter
+3. Verifique se chegou no webhook n8n
+
+### 5.3 Verificar logs
+
+**No Vercel:**
+1. Vá em **Functions** → **Logs**
+2. Filtre por `/api/upload-audio` e `/api/send-message`
+3. Verifique erros
+
+**No Supabase:**
+1. Vá em **Storage** → Bucket `audios`
+2. Verifique se áudios foram salvos
+
+---
+
+## 🚨 Troubleshooting
+
+### Erro: "Build failed"
+
+**Causa:** Erro de compilação TypeScript ou dependência
+
+**Solução:**
 ```bash
-# Build
-docker build -t painel-whatsapp .
+# Teste localmente
+npm run build
 
-# Run
-docker run -p 3000:3000 --env-file .env.production painel-whatsapp
-
-# Com docker-compose
-docker-compose up -d
+# Se funcionar local mas falhar na Vercel:
+# Verifique node version em package.json
 ```
+
+### Erro: "Supabase não configurado"
+
+**Causa:** Variáveis de ambiente não configuradas
+
+**Solução:**
+1. Vercel Dashboard → Settings → Environment Variables
+2. Adicione `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+3. Redeploy
+
+### Erro: "Bucket não encontrado" ao gravar áudio
+
+**Causa:** Bucket `audios` não existe no Supabase
+
+**Solução:**
+1. Supabase Dashboard → Storage → New bucket
+2. Nome: `audios`
+3. Público: ✅
+4. Adicionar políticas RLS
+
+### Erro: "CORS" ao fazer upload
+
+**Causa:** Configuração CORS no Supabase
+
+**Solução:**
+1. Supabase → Settings → API
+2. Adicione seu domínio Vercel em **CORS Allowed Origins**
+3. Exemplo: `https://seu-projeto.vercel.app`
+
+### Preview deployment não funciona
+
+**Causa:** Variáveis de ambiente não configuradas para Preview
+
+**Solução:**
+1. Adicione variáveis também para **Preview**
+2. Ou use variáveis específicas de preview
 
 ---
 
-## ☁️ Outras Plataformas de Deploy
+## 🔐 Segurança em Produção
 
-### Netlify
+### 1. Variáveis de Ambiente
 
-```bash
-# Instalar CLI
-npm i -g netlify-cli
-
-# Login
-netlify login
-
-# Deploy
-netlify deploy --prod
+✅ **Correto:**
+```
+NEXT_PUBLIC_SUPABASE_URL=https://...  (pode ser pública)
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...     (pode ser pública)
+N8N_WEBHOOK_URL=...                   (servidor - não exposta)
 ```
 
-**Build Settings:**
-- Build command: `npm run build`
-- Publish directory: `.next`
+❌ **Evite:**
+- Não commitar `.env.local` no git
+- Não usar chave `service_role` do Supabase no frontend
 
-### Railway
+### 2. Supabase Row Level Security (RLS)
 
-1. Conecte seu repositório
-2. Configure variáveis de ambiente
-3. Deploy automático a cada push
-
-### Render
-
-1. New Web Service
-2. Conecte repositório
-3. Build: `npm run build`
-4. Start: `npm run start`
-
----
-
-## 🔧 Configuração Pós-Deploy
-
-### 1. Configurar Supabase Realtime
-
-No Supabase Dashboard:
-
-1. Vá em **Database → Replication**
-2. Ative Realtime na tabela `chats`
-3. Configure RLS (Row Level Security) se necessário:
+Configure políticas RLS:
 
 ```sql
--- Permitir leitura pública (ou configure autenticação)
-CREATE POLICY "Allow public read" ON chats
-  FOR SELECT USING (true);
+-- Apenas leitura pública em chats
+CREATE POLICY "Allow read chats"
+ON chats FOR SELECT
+TO public
+USING (true);
 
--- Permitir escrita pública (ou configure autenticação)
-CREATE POLICY "Allow public insert" ON chats
-  FOR INSERT WITH CHECK (true);
+-- Apenas leitura pública em leads
+CREATE POLICY "Allow read leads"
+ON leads FOR SELECT
+TO public
+USING (true);
 ```
 
-### 2. Atualizar Webhook n8n
+### 3. n8n Webhook Authentication
 
-No n8n, atualize o webhook de recebimento para apontar para seu domínio:
+Adicione autenticação no webhook:
 
+```env
+N8N_WEBHOOK_SECRET=seu-token-super-secreto
 ```
-POST https://seu-dominio.vercel.app/api/receive-message
-Header: Authorization: Bearer seu-token-secreto
+
+E no código:
+```typescript
+headers: {
+  'Authorization': `Bearer ${process.env.N8N_WEBHOOK_SECRET}`
+}
 ```
 
-### 3. Configurar Domínio Customizado (Opcional)
+---
 
-Na Vercel:
-1. Settings → Domains
-2. Adicione seu domínio
-3. Configure DNS conforme instruções
+## 🔄 Continuous Deployment (CD)
+
+A Vercel já configura CD automaticamente:
+
+- ✅ **Push para main/master** → Deploy automático em produção
+- ✅ **Pull Request** → Preview deployment automático
+- ✅ **Commit em branch** → Preview deployment
+
+### Configurar branch de produção
+
+1. Vercel Dashboard → Settings → Git
+2. **Production Branch**: `main` (ou `master`)
+3. Salvar
 
 ---
 
 ## 📊 Monitoramento
 
-### Logs na Vercel
+### Analytics da Vercel
 
-```bash
-# Via CLI
-vercel logs
+1. Vercel Dashboard → Analytics
+2. Veja:
+   - Visitas
+   - Performance
+   - Core Web Vitals
 
-# Ou na interface: Deployments → Selecionar deploy → Functions → Logs
-```
+### Logs de Função
 
-### Verificações de Saúde
+1. Vercel Dashboard → Functions
+2. Filtre por:
+   - `/api/upload-audio`
+   - `/api/send-message`
+   - `/api/receive-message`
 
-Teste os endpoints:
+### Supabase Logs
 
-```bash
-# Health check (página principal)
-curl https://seu-dominio.vercel.app
-
-# API de envio (requer dados)
-curl -X POST https://seu-dominio.vercel.app/api/send-message \
-  -H "Content-Type: application/json" \
-  -d '{"phone":"5511999999999","message":"teste","clientName":"teste"}'
-
-# API de leads
-curl -X POST https://seu-dominio.vercel.app/api/leads \
-  -H "Content-Type: application/json" \
-  -d '{"telefone":"5511999999999","nome":"teste"}'
-```
+1. Supabase Dashboard → Logs
+2. Filtre por:
+   - Storage operations
+   - API requests
 
 ---
 
-## 🔒 Segurança em Produção
+## 🎯 Otimizações para Produção
 
-### 1. Ativar CORS (se necessário)
+### 1. Ativar Caching
 
-Em `next.config.js`:
+Já está configurado por padrão no Next.js 16.
 
-```javascript
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  async headers() {
-    return [
-      {
-        source: '/api/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: 'https://seu-dominio.com' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type,Authorization' },
-        ],
-      },
-    ]
-  },
-}
-
-module.exports = nextConfig
-```
-
-### 2. Configurar Rate Limiting
-
-Use Vercel Edge Config ou middleware:
+### 2. Comprimir Imagens (se adicionar)
 
 ```typescript
-// middleware.ts
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-
-export function middleware(request: NextRequest) {
-  // Implementar rate limiting aqui
-  return NextResponse.next()
-}
-
-export const config = {
-  matcher: '/api/:path*',
+// next.config.ts
+const nextConfig = {
+  images: {
+    formats: ['image/avif', 'image/webp'],
+  },
 }
 ```
 
-### 3. Validar Tokens em Produção
+### 3. Limpar áudios antigos
 
-Garanta que `N8N_WEBHOOK_SECRET` e `WEBHOOK_SECRET` estejam configurados.
-
----
-
-## 🐛 Troubleshooting
-
-### Erro: "Internal Server Error"
-
-1. Verifique logs: `vercel logs`
-2. Confirme variáveis de ambiente
-3. Teste build local: `npm run build && npm run start`
-
-### Erro: "Supabase connection failed"
-
-1. Verifique `NEXT_PUBLIC_SUPABASE_URL`
-2. Verifique `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-3. Teste conexão diretamente no Supabase Dashboard
-
-### Erro: "n8n webhook timeout"
-
-1. Verifique `N8N_WEBHOOK_URL`
-2. Teste webhook diretamente com curl
-3. Aumente timeout em `src/components/chat-view.tsx` (atualmente 10s)
-
-### Realtime não funciona
-
-1. Ative Realtime no Supabase (Database → Replication)
-2. Verifique se polling está ativo (fallback automático)
-3. Status deve mostrar 🟡 "Atualizando (3s)" se Realtime falhar
+Configure workflow n8n para deletar áudios com mais de 7 dias (veja `AUDIO_SETUP.md`).
 
 ---
 
-## 📈 Performance
+## ✅ Checklist Final
 
-### Otimizações Recomendadas
-
-1. **Image Optimization**: Next.js otimiza automaticamente
-2. **Font Optimization**: Já configurado com Geist
-3. **Bundle Analysis**:
-
-```bash
-npm install -D @next/bundle-analyzer
-
-# Em next.config.js
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-})
-
-module.exports = withBundleAnalyzer(nextConfig)
-
-# Rodar análise
-ANALYZE=true npm run build
-```
-
-4. **Cache**: Vercel faz cache automático de static files
-
----
-
-## 🔄 CI/CD
-
-### GitHub Actions (Opcional)
-
-Crie `.github/workflows/deploy.yml`:
-
-```yaml
-name: Deploy to Vercel
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
-      - name: Deploy to Vercel
-        run: npx vercel --prod --token=${{ secrets.VERCEL_TOKEN }}
-```
-
----
-
-## 📝 Checklist de Deploy
-
-Antes de fazer deploy:
-
+- [ ] Deploy bem-sucedido na Vercel
 - [ ] Variáveis de ambiente configuradas
-- [ ] Supabase Realtime ativado
-- [ ] n8n webhook testado
-- [ ] Build local funcionando (`npm run build`)
-- [ ] Código commitado no Git
-- [ ] Testes básicos realizados
-- [ ] Documentação atualizada
-- [ ] Domínio configurado (se aplicável)
-
-Após deploy:
-
-- [ ] Testar criação de nova conversa
-- [ ] Testar envio de mensagem
-- [ ] Verificar Realtime/Polling
-- [ ] Testar página de leads
-- [ ] Verificar indicadores visuais
-- [ ] Monitorar logs por 24h
+- [ ] Site acessível via URL Vercel
+- [ ] Bucket `audios` criado no Supabase
+- [ ] Políticas RLS configuradas
+- [ ] Webhook n8n atualizado com lógica de áudio
+- [ ] Testes realizados:
+  - [ ] Gravação de áudio
+  - [ ] Upload de arquivo
+  - [ ] Envio de texto
+  - [ ] Tempo real funcionando
+- [ ] Domínio customizado configurado (opcional)
+- [ ] Analytics ativado (opcional)
 
 ---
 
-## 🆘 Suporte
+## 📚 Recursos Úteis
 
-Em caso de problemas:
-
-1. Consulte logs: `vercel logs`
-2. Veja TROUBLESHOOTING.md
-3. Revise NOVA_CONVERSA_FEATURE.md
+- [Vercel Documentation](https://vercel.com/docs)
+- [Next.js Deployment](https://nextjs.org/docs/deployment)
+- [Supabase Production Checklist](https://supabase.com/docs/guides/platform/going-into-prod)
+- [n8n Best Practices](https://docs.n8n.io/hosting/)
 
 ---
 
-**Deploy realizado com sucesso! 🎉**
+## 🎉 Deploy Completo!
+
+Seu painel está no ar! 🚀
+
+**URL de produção:**
+```
+https://seu-projeto.vercel.app
+```
+
+**Próximos passos:**
+1. Configure domínio customizado
+2. Ative analytics
+3. Configure alertas de erro
+4. Monitore performance
+
+---
+
+**Precisa de ajuda?** Consulte:
+- `TROUBLESHOOTING.md` - Guia de problemas comuns
+- `AUDIO_SETUP.md` - Configuração de áudio
+- `README.md` - Documentação geral
