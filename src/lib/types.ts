@@ -16,3 +16,15 @@ export type Conversation = {
   lastMessage: string
   lastType: string
 }
+
+export type MessageType = 'text' | 'audio' | 'image' | 'document'
+
+export type SendMessagePayload = {
+  phone: string
+  messageType: MessageType
+  message?: string
+  mediaUrl?: string
+  clientName?: string
+  timestamp?: string
+  source?: string
+}
