@@ -1,22 +1,26 @@
 'use client'
 
 import Link from 'next/link'
-import { Search, Pause, Play, Edit2, Trash2 } from 'lucide-react'
+import { Search, Pause, Play, Edit2, Trash2, Plus } from 'lucide-react'
 import { useState } from 'react'
 import type { Conversation, Lead } from '@/lib/types'
+import { NewConversationModal } from './new-conversation-modal'
 
 export function ConversationList({
   conversations,
   selectedSession,
   onToggleTrava,
-  onUpdateConversations
+  onUpdateConversations,
+  onNewConversation
 }: {
   conversations: Conversation[]
   selectedSession?: string
   onToggleTrava?: (lead: Lead) => void
   onUpdateConversations?: () => void
+  onNewConversation?: (sessionId: string) => void
 }) {
   const [search, setSearch] = useState('')
+  const [showNewConversation, setShowNewConversation] = useState(false)
 
   const filtered = conversations.filter(conv => {
     const searchLower = search.toLowerCase()
@@ -44,7 +48,15 @@ export function ConversationList({
 
   return (
     <div className="w-80 bg-[var(--card)] border-r border-[var(--border)] flex flex-col">
-      <div className="p-4 border-b border-[var(--border)]">
+      <div className="p-4 border-b border-[var(--border)] space-y-3">
+        <button
+          onClick={() => setShowNewConversation(true)}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+        >
+          <Plus size={18} />
+          Nova Conversa
+        </button>
+
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={18} />
           <input
@@ -128,6 +140,17 @@ export function ConversationList({
           })
         )}
       </div>
+
+      <NewConversationModal
+        open={showNewConversation}
+        onClose={() => setShowNewConversation(false)}
+        onSuccess={(sessionId) => {
+          setShowNewConversation(false)
+          if (onNewConversation) {
+            onNewConversation(sessionId)
+          }
+        }}
+      />
     </div>
   )
 }

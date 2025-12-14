@@ -119,6 +119,12 @@ export function RealtimeConversations({
     }
   }
 
+  // Função para navegar para uma conversa (atualiza URL)
+  const handleNewConversation = (sessionId: string) => {
+    router.push(`/conversas?session=${sessionId}`)
+    setSelectedSession(sessionId)
+  }
+
   useEffect(() => {
     // Função para buscar dados atualizados
     const fetchData = async () => {
@@ -257,6 +263,7 @@ export function RealtimeConversations({
         selectedSession={selectedSession}
         onToggleTrava={handleToggleTrava}
         onUpdateConversations={handleUpdateConversations}
+        onNewConversation={handleNewConversation}
       />
       <ChatView
         conversation={selectedConversation}
