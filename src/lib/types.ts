@@ -4,6 +4,10 @@ export type ChatMessage = {
   message: {
     type: string
     content: string
+    additional_kwargs?: {
+      image?: string
+      [key: string]: unknown
+    }
   }
 }
 
