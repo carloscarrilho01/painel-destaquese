@@ -1,16 +1,20 @@
 'use client'
 
 import Link from 'next/link'
-import { Search } from 'lucide-react'
+import { Search, Pause, Play, Edit2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import type { Conversation } from '@/lib/types'
+import type { Conversation, Lead } from '@/lib/types'
 
 export function ConversationList({
   conversations,
   selectedSession,
+  onToggleTrava,
+  onUpdateConversations
 }: {
   conversations: Conversation[]
   selectedSession?: string
+  onToggleTrava?: (lead: Lead) => void
+  onUpdateConversations?: () => void
 }) {
   const [search, setSearch] = useState('')
 
@@ -22,6 +26,21 @@ export function ConversationList({
       conv.lastMessage.toLowerCase().includes(searchLower)
     )
   })
+
+  const handleToggleTrava = async (e: React.MouseEvent, lead: Lead) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (onToggleTrava) {
+      onToggleTrava(lead)
+      // Aguardar um pouco e atualizar a lista
+      setTimeout(() => {
+        if (onUpdateConversations) {
+          onUpdateConversations()
+        }
+      }, 500)
+    }
+  }
 
   return (
     <div className="w-80 bg-[var(--card)] border-r border-[var(--border)] flex flex-col">
@@ -54,8 +73,12 @@ export function ConversationList({
               <Link
                 key={conv.session_id}
                 href={`/conversas?session=${conv.session_id}`}
-                className={`block p-4 border-b border-[var(--border)] hover:bg-[var(--card-hover)] transition-colors ${
-                  selectedSession === conv.session_id ? 'bg-[var(--card-hover)]' : ''
+                className={`block p-4 border-b border-[var(--border)] transition-colors ${
+                  selectedSession === conv.session_id
+                    ? 'bg-[var(--card-hover)]'
+                    : conv.lead?.trava
+                      ? 'bg-yellow-500/5 hover:bg-yellow-500/10 opacity-75'
+                      : 'hover:bg-[var(--card-hover)]'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -63,9 +86,16 @@ export function ConversationList({
                     {initials}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium truncate">{displayName}</p>
-                      <span className="text-xs text-[var(--muted)]">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <p className="font-medium truncate">{displayName}</p>
+                        {conv.lead?.trava && (
+                          <span className="bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded text-xs flex-shrink-0">
+                            Pausado
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-[var(--muted)] flex-shrink-0">
                         {conv.messageCount} msgs
                       </span>
                     </div>
@@ -73,6 +103,24 @@ export function ConversationList({
                       {conv.lastType === 'ai' ? 'Agente: ' : 'Cliente: '}
                       {conv.lastMessage.slice(0, 30)}...
                     </p>
+
+                    {/* Botões de ação */}
+                    {conv.lead && (
+                      <div className="flex items-center gap-1 mt-2">
+                        <button
+                          onClick={(e) => handleToggleTrava(e, conv.lead!)}
+                          className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                            conv.lead.trava
+                              ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
+                              : 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20'
+                          }`}
+                          title={conv.lead.trava ? 'Despausar agente' : 'Pausar agente'}
+                        >
+                          {conv.lead.trava ? <Play size={12} /> : <Pause size={12} />}
+                          <span>{conv.lead.trava ? 'Ativar' : 'Pausar'}</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </Link>
