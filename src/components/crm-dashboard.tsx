@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import {
   Search, Users, TrendingUp, Phone, Calendar,
   Filter, LayoutGrid, List, Star, Clock, CheckCircle,
-  UserCheck, UserX, Target, BarChart3
+  UserCheck, UserX, Target, BarChart3, GripVertical
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -24,10 +24,13 @@ type Lead = {
 type ViewMode = 'kanban' | 'list'
 type Pipeline = 'novo' | 'contato' | 'interessado' | 'negociacao' | 'ganho' | 'perdido'
 
-export function CRMDashboard({ leads }: { leads: Lead[] }) {
+export function CRMDashboard({ leads: initialLeads }: { leads: Lead[] }) {
+  const [leads, setLeads] = useState(initialLeads)
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null)
+  const [draggedLead, setDraggedLead] = useState<Lead | null>(null)
+  const [updating, setUpdating] = useState(false)
 
   // Calcular estatísticas
   const stats = useMemo(() => {
@@ -97,6 +100,73 @@ export function CRMDashboard({ leads }: { leads: Lead[] }) {
 
     return filtered
   }, [leads, search, selectedPipeline, leadsByPipeline])
+
+  // Função para atualizar lead após drag and drop
+  const handleDropLead = async (lead: Lead, targetPipeline: Pipeline) => {
+    // Calcular novos valores baseado no pipeline de destino
+    let updates: Partial<Lead> = {}
+
+    switch (targetPipeline) {
+      case 'novo':
+        updates = { followup: 0, interessado: false }
+        break
+      case 'contato':
+        updates = { followup: 1, interessado: false }
+        break
+      case 'interessado':
+        updates = { followup: 1, interessado: true }
+        break
+      case 'negociacao':
+        updates = { followup: 2, interessado: true }
+        break
+      case 'ganho':
+        updates = { followup: 3, interessado: true }
+        break
+      case 'perdido':
+        updates = { followup: 2, interessado: false }
+        break
+    }
+
+    // Atualização otimista na UI
+    setLeads(prevLeads =>
+      prevLeads.map(l =>
+        l.id === lead.id ? { ...l, ...updates } : l
+      )
+    )
+
+    setUpdating(true)
+
+    try {
+      const response = await fetch('/api/update-lead', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: lead.id,
+          updates
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Falha ao atualizar lead')
+      }
+
+      const data = await response.json()
+
+      // Atualizar com dados do servidor
+      setLeads(prevLeads =>
+        prevLeads.map(l => (l.id === lead.id ? data.lead : l))
+      )
+    } catch (error) {
+      console.error('Erro ao atualizar lead:', error)
+      // Reverter em caso de erro
+      setLeads(prevLeads =>
+        prevLeads.map(l => (l.id === lead.id ? lead : l))
+      )
+      alert('Erro ao mover lead. Tente novamente.')
+    } finally {
+      setUpdating(false)
+    }
+  }
 
   const pipelineConfig: Record<Pipeline, { label: string; icon: any; color: string; bgColor: string }> = {
     novo: {
@@ -206,7 +276,7 @@ export function CRMDashboard({ leads }: { leads: Lead[] }) {
           </div>
 
           {/* Filtros de pipeline */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setSelectedPipeline(null)}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -268,9 +338,23 @@ export function CRMDashboard({ leads }: { leads: Lead[] }) {
         </div>
       </div>
 
+      {/* Indicador de atualização */}
+      {updating && (
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-sm text-blue-500 flex items-center gap-2">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+          Atualizando lead...
+        </div>
+      )}
+
       {/* Conteúdo */}
       {viewMode === 'kanban' ? (
-        <KanbanView leadsByPipeline={leadsByPipeline} pipelineConfig={pipelineConfig} />
+        <KanbanView
+          leadsByPipeline={leadsByPipeline}
+          pipelineConfig={pipelineConfig}
+          onDropLead={handleDropLead}
+          draggedLead={draggedLead}
+          setDraggedLead={setDraggedLead}
+        />
       ) : (
         <ListView leads={filteredLeads} />
       )}
@@ -278,23 +362,67 @@ export function CRMDashboard({ leads }: { leads: Lead[] }) {
   )
 }
 
-// Componente de visualização Kanban
+// Componente de visualização Kanban com Drag & Drop
 function KanbanView({
   leadsByPipeline,
-  pipelineConfig
+  pipelineConfig,
+  onDropLead,
+  draggedLead,
+  setDraggedLead
 }: {
   leadsByPipeline: Record<Pipeline, Lead[]>
   pipelineConfig: Record<Pipeline, any>
+  onDropLead: (lead: Lead, pipeline: Pipeline) => void
+  draggedLead: Lead | null
+  setDraggedLead: (lead: Lead | null) => void
 }) {
+  const [dragOverPipeline, setDragOverPipeline] = useState<Pipeline | null>(null)
+
+  const handleDragStart = (e: React.DragEvent, lead: Lead) => {
+    setDraggedLead(lead)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent, pipeline: Pipeline) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverPipeline(pipeline)
+  }
+
+  const handleDragLeave = () => {
+    setDragOverPipeline(null)
+  }
+
+  const handleDrop = (e: React.DragEvent, targetPipeline: Pipeline) => {
+    e.preventDefault()
+    setDragOverPipeline(null)
+
+    if (draggedLead) {
+      onDropLead(draggedLead, targetPipeline)
+      setDraggedLead(null)
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
       {(Object.keys(pipelineConfig) as Pipeline[]).map(pipeline => {
         const config = pipelineConfig[pipeline]
         const Icon = config.icon
         const leads = leadsByPipeline[pipeline]
+        const isDragOver = dragOverPipeline === pipeline
 
         return (
-          <div key={pipeline} className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <div
+            key={pipeline}
+            className={`bg-[var(--card)] border rounded-xl p-4 transition-all ${
+              isDragOver
+                ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20 scale-[1.02]'
+                : 'border-[var(--border)]'
+            }`}
+            onDragOver={(e) => handleDragOver(e, pipeline)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, pipeline)}
+          >
             <div className={`flex items-center gap-2 mb-4 pb-3 border-b border-[var(--border)]`}>
               <div className={`${config.bgColor} p-2 rounded-lg`}>
                 <Icon className={config.color} size={18} />
@@ -309,46 +437,55 @@ function KanbanView({
               {leads.map(lead => (
                 <div
                   key={lead.id}
-                  className="bg-[var(--background)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--primary)] transition-colors cursor-pointer"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, lead)}
+                  className={`bg-[var(--background)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--primary)] transition-all cursor-grab active:cursor-grabbing ${
+                    draggedLead?.id === lead.id ? 'opacity-50 scale-95' : 'opacity-100'
+                  }`}
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm truncate">
-                        {lead.nome || 'Sem nome'}
-                      </p>
-                      <p className="text-xs text-[var(--muted)] flex items-center gap-1 mt-1">
-                        <Phone size={12} />
-                        {lead.telefone}
-                      </p>
-                    </div>
-                    {lead.trava && (
-                      <div className="bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded text-xs">
-                        Trava
+                  <div className="flex items-start gap-2">
+                    <GripVertical size={16} className="text-[var(--muted)] mt-1 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            {lead.nome || 'Sem nome'}
+                          </p>
+                          <p className="text-xs text-[var(--muted)] flex items-center gap-1 mt-1">
+                            <Phone size={12} />
+                            {lead.telefone}
+                          </p>
+                        </div>
+                        {lead.trava && (
+                          <div className="bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded text-xs ml-2 flex-shrink-0">
+                            Trava
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {lead.interesse && (
-                    <p className="text-xs text-[var(--muted)] mt-2 truncate">
-                      {lead.interesse}
-                    </p>
-                  )}
+                      {lead.interesse && (
+                        <p className="text-xs text-[var(--muted)] mt-2 truncate">
+                          {lead.interesse}
+                        </p>
+                      )}
 
-                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--border)]">
-                    <div className="flex items-center gap-1 text-xs text-[var(--muted)]">
-                      <Clock size={12} />
-                      <span>Follow-up: {lead.followup}</span>
+                      <div className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--border)]">
+                        <div className="flex items-center gap-1 text-xs text-[var(--muted)]">
+                          <Clock size={12} />
+                          <span>Follow-up: {lead.followup}</span>
+                        </div>
+                        <span className="text-xs text-[var(--muted)]">
+                          {format(new Date(lead.created_at), 'dd/MM', { locale: ptBR })}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-xs text-[var(--muted)]">
-                      {format(new Date(lead.created_at), 'dd/MM', { locale: ptBR })}
-                    </span>
                   </div>
                 </div>
               ))}
 
               {leads.length === 0 && (
-                <div className="text-center py-8 text-[var(--muted)] text-sm">
-                  Nenhum lead nesta etapa
+                <div className="text-center py-8 text-[var(--muted)] text-sm border-2 border-dashed border-[var(--border)] rounded-lg">
+                  {isDragOver ? 'Solte aqui' : 'Nenhum lead nesta etapa'}
                 </div>
               )}
             </div>
