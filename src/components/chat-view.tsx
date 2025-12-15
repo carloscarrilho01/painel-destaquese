@@ -113,15 +113,26 @@ export function ChatView({
         {messagesToShow.map((chat) => {
           const isHuman = chat.message.type === 'human'
 
-          // Priorizar o campo media_url do nível raiz (tabela chats)
-          const imageUrl = chat.media_url ||
-                          chat.message.additional_kwargs?.image ||
-                          (chat.message as any).image ||
-                          (chat.message as any).media_url ||
-                          (chat.message as any).mediaUrl
+          // Buscar URL da imagem em todos os lugares possíveis
+          let imageUrl = null
+
+          // 1. No nível raiz do chat
+          imageUrl = chat.media_url || (chat as any).mediaUrl
+
+          // 2. Dentro de message.additional_kwargs
+          if (!imageUrl && chat.message.additional_kwargs) {
+            const kwargs = chat.message.additional_kwargs as any
+            imageUrl = kwargs.image || kwargs.mediaUrl || kwargs.media_url || kwargs.url
+          }
+
+          // 3. Diretamente no message
+          if (!imageUrl) {
+            const msg = chat.message as any
+            imageUrl = msg.image || msg.mediaUrl || msg.media_url || msg.url
+          }
 
           // Verificar se o conteúdo é um nome de arquivo de imagem
-          const isImageFilename = chat.message.content?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+          const isImageFilename = chat.message.content?.match(/\.(jpg|jpeg|png|gif|webp|mp4|mp3|ogg|wav|oga)$/i)
 
           return (
             <div
