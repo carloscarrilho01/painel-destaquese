@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { phone, message, clientName } = body
+    const { phone, message, clientName, messageType, mediaUrl } = body
 
     // Validações básicas
     if (!phone || !message) {
@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
     const webhookPayload = {
       phone,
       message,
+      messageType: messageType || 'text',
+      mediaUrl: mediaUrl || undefined,
       clientName,
       timestamp: new Date().toISOString(),
       source: 'painel-admin'

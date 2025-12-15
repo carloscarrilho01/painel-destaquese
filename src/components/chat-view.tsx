@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { User, Bot, Send, Loader2 } from 'lucide-react'
+import { User, Bot, Send, Loader2, Paperclip, X, Image as ImageIcon } from 'lucide-react'
 import type { Conversation } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 
 function isToolMessage(content: string): boolean {
   return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
@@ -18,8 +19,12 @@ export function ChatView({
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [filePreview, setFilePreview] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Auto-scroll para a última mensagem quando houver novas mensagens
   useEffect(() => {
@@ -28,13 +33,78 @@ export function ChatView({
     }
   }, [conversation?.messages.length])
 
+  // Limpar preview quando arquivo for removido
+  useEffect(() => {
+    return () => {
+      if (filePreview) {
+        URL.revokeObjectURL(filePreview)
+      }
+    }
+  }, [filePreview])
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setSelectedFile(file)
+
+    // Criar preview para imagens
+    if (file.type.startsWith('image/')) {
+      const preview = URL.createObjectURL(file)
+      setFilePreview(preview)
+    } else {
+      setFilePreview(null)
+    }
+  }
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null)
+    if (filePreview) {
+      URL.revokeObjectURL(filePreview)
+      setFilePreview(null)
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const uploadFileToSupabase = async (file: File): Promise<string> => {
+    const timestamp = Date.now()
+    const randomStr = Math.random().toString(36).substring(7)
+    const extension = file.name.split('.').pop() || 'bin'
+    const fileName = `${file.type.startsWith('image/') ? 'image' : 'file'}_${timestamp}_${randomStr}.${extension}`
+
+    const { data, error } = await supabase.storage
+      .from('images')
+      .upload(fileName, file, {
+        contentType: file.type,
+        upsert: false
+      })
+
+    if (error) throw error
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(fileName)
+
+    return publicUrl
+  }
+
   const handleSendMessage = async () => {
-    if (!message.trim() || !session_id || sending) return
+    if ((!message.trim() && !selectedFile) || !session_id || sending) return
 
     setSending(true)
+    setUploading(!!selectedFile)
     setFeedback(null)
 
     try {
+      let mediaUrl: string | undefined
+
+      // Upload do arquivo se houver
+      if (selectedFile) {
+        mediaUrl = await uploadFileToSupabase(selectedFile)
+      }
+
       const response = await fetch('/api/send-message', {
         method: 'POST',
         headers: {
@@ -42,7 +112,9 @@ export function ChatView({
         },
         body: JSON.stringify({
           phone: session_id,
-          message: message.trim(),
+          message: message.trim() || selectedFile?.name || '',
+          messageType: selectedFile ? (selectedFile.type.startsWith('image/') ? 'image' : 'file') : 'text',
+          mediaUrl,
           clientName: conversation?.clientName || session_id
         })
       })
@@ -50,8 +122,9 @@ export function ChatView({
       const data = await response.json()
 
       if (response.ok) {
-        setFeedback({ type: 'success', text: 'Mensagem enviada com sucesso!' })
-        setMessage('') // Limpar campo
+        setFeedback({ type: 'success', text: selectedFile ? 'Arquivo enviado com sucesso!' : 'Mensagem enviada com sucesso!' })
+        setMessage('')
+        handleRemoveFile()
 
         // Limpar feedback após 3 segundos
         setTimeout(() => setFeedback(null), 3000)
@@ -60,9 +133,10 @@ export function ChatView({
       }
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error)
-      setFeedback({ type: 'error', text: 'Erro de conexão ao enviar mensagem' })
+      setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'Erro de conexão ao enviar mensagem' })
     } finally {
       setSending(false)
+      setUploading(false)
     }
   }
 
@@ -211,25 +285,69 @@ export function ChatView({
           </div>
         )}
 
+        {/* Preview do arquivo selecionado */}
+        {selectedFile && (
+          <div className="mb-3 p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg">
+            <div className="flex items-center gap-3">
+              {filePreview ? (
+                <img src={filePreview} alt="Preview" className="w-16 h-16 object-cover rounded" />
+              ) : (
+                <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
+                  <ImageIcon size={24} className="text-gray-400" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+                <p className="text-xs text-[var(--muted)]">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+              </div>
+              <button
+                onClick={handleRemoveFile}
+                className="p-2 hover:bg-[var(--card-hover)] rounded transition-colors"
+                disabled={sending}
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileSelect}
+            accept="image/*,audio/*,video/*,.pdf,.doc,.docx"
+            className="hidden"
+            disabled={sending}
+          />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending}
+            className="p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Anexar arquivo"
+          >
+            <Paperclip size={18} />
+          </button>
+
           <input
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Digite sua mensagem..."
+            placeholder={selectedFile ? "Mensagem opcional..." : "Digite sua mensagem..."}
             disabled={sending}
             className="flex-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <button
             onClick={handleSendMessage}
-            disabled={!message.trim() || sending}
+            disabled={(!message.trim() && !selectedFile) || sending}
             className="bg-[var(--primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {sending ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                <span>Enviando...</span>
+                <span>{uploading ? 'Enviando arquivo...' : 'Enviando...'}</span>
               </>
             ) : (
               <>
