@@ -252,10 +252,19 @@ export function ChatView({
           const isHuman = chat.message.type === 'human'
 
           // Verificar diferentes locais onde a imagem pode estar
-          const imageUrl = chat.message.additional_kwargs?.image ||
-                          (chat.message as any).image ||
-                          (chat.message as any).media_url ||
-                          (chat.message as any).mediaUrl
+          // Tentar no objeto message primeiro
+          let imageUrl = chat.message.additional_kwargs?.image ||
+                        (chat.message as any).image ||
+                        (chat.message as any).media_url ||
+                        (chat.message as any).mediaUrl
+
+          // Se não achou, tentar no nível raiz do chat
+          if (!imageUrl) {
+            imageUrl = (chat as any).mediaUrl ||
+                      (chat as any).media_url ||
+                      (chat as any).image_url ||
+                      (chat as any).imageUrl
+          }
 
           // Verificar se o conteúdo é um nome de arquivo de imagem
           const isImageFilename = chat.message.content?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
@@ -285,9 +294,16 @@ export function ChatView({
 
                 {/* Debug: Mostrar estrutura do objeto se for imagem */}
                 {isImageFilename && !imageUrl && (
-                  <pre className="text-xs mb-2 bg-black/20 p-2 rounded overflow-auto">
-                    {JSON.stringify(chat.message, null, 2)}
-                  </pre>
+                  <div className="mb-2">
+                    <p className="text-xs font-bold mb-1">DEBUG - chat.message:</p>
+                    <pre className="text-xs bg-black/20 p-2 rounded overflow-auto mb-2">
+                      {JSON.stringify(chat.message, null, 2)}
+                    </pre>
+                    <p className="text-xs font-bold mb-1">DEBUG - chat completo:</p>
+                    <pre className="text-xs bg-black/20 p-2 rounded overflow-auto">
+                      {JSON.stringify(chat, null, 2)}
+                    </pre>
+                  </div>
                 )}
 
                 {/* Renderizar imagem se existir */}
