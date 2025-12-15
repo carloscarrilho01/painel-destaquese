@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { User, Bot, Send, Loader2 } from 'lucide-react'
-import type { Conversation, MessageType } from '@/lib/types'
-import { AudioRecorder } from './audio-recorder'
-import { MediaUploader } from './media-uploader'
+import { User, Bot, Send, Loader2, Paperclip, X, Image as ImageIcon } from 'lucide-react'
+import type { Conversation } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 
 function isToolMessage(content: string): boolean {
   return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
@@ -13,18 +12,19 @@ function isToolMessage(content: string): boolean {
 export function ChatView({
   conversation,
   session_id,
-  onUpdateConversations,
 }: {
   conversation?: Conversation
   session_id?: string
-  onUpdateConversations?: () => void | Promise<void>
 }) {
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const [mode, setMode] = useState<'text' | 'audio' | 'image' | 'document'>('text')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [filePreview, setFilePreview] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Auto-scroll para a última mensagem quando houver novas mensagens
   useEffect(() => {
@@ -33,13 +33,78 @@ export function ChatView({
     }
   }, [conversation?.messages.length])
 
+  // Limpar preview quando arquivo for removido
+  useEffect(() => {
+    return () => {
+      if (filePreview) {
+        URL.revokeObjectURL(filePreview)
+      }
+    }
+  }, [filePreview])
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setSelectedFile(file)
+
+    // Criar preview para imagens
+    if (file.type.startsWith('image/')) {
+      const preview = URL.createObjectURL(file)
+      setFilePreview(preview)
+    } else {
+      setFilePreview(null)
+    }
+  }
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null)
+    if (filePreview) {
+      URL.revokeObjectURL(filePreview)
+      setFilePreview(null)
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const uploadFileToSupabase = async (file: File): Promise<string> => {
+    const timestamp = Date.now()
+    const randomStr = Math.random().toString(36).substring(7)
+    const extension = file.name.split('.').pop() || 'bin'
+    const fileName = `${file.type.startsWith('image/') ? 'image' : 'file'}_${timestamp}_${randomStr}.${extension}`
+
+    const { data, error } = await supabase.storage
+      .from('images')
+      .upload(fileName, file, {
+        contentType: file.type,
+        upsert: false
+      })
+
+    if (error) throw error
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(fileName)
+
+    return publicUrl
+  }
+
   const handleSendMessage = async () => {
-    if (!message.trim() || !session_id || sending) return
+    if ((!message.trim() && !selectedFile) || !session_id || sending) return
 
     setSending(true)
+    setUploading(!!selectedFile)
     setFeedback(null)
 
     try {
+      let mediaUrl: string | undefined
+
+      // Upload do arquivo se houver
+      if (selectedFile) {
+        mediaUrl = await uploadFileToSupabase(selectedFile)
+      }
+
       const response = await fetch('/api/send-message', {
         method: 'POST',
         headers: {
@@ -47,7 +112,9 @@ export function ChatView({
         },
         body: JSON.stringify({
           phone: session_id,
-          message: message.trim(),
+          message: message.trim() || selectedFile?.name || '',
+          messageType: selectedFile ? (selectedFile.type.startsWith('image/') ? 'image' : 'file') : 'text',
+          mediaUrl,
           clientName: conversation?.clientName || session_id
         })
       })
@@ -55,13 +122,9 @@ export function ChatView({
       const data = await response.json()
 
       if (response.ok) {
-        setFeedback({ type: 'success', text: 'Mensagem enviada com sucesso!' })
-        setMessage('') // Limpar campo
-
-        // Atualizar conversações
-        if (onUpdateConversations) {
-          await onUpdateConversations()
-        }
+        setFeedback({ type: 'success', text: selectedFile ? 'Arquivo enviado com sucesso!' : 'Mensagem enviada com sucesso!' })
+        setMessage('')
+        handleRemoveFile()
 
         // Limpar feedback após 3 segundos
         setTimeout(() => setFeedback(null), 3000)
@@ -70,9 +133,10 @@ export function ChatView({
       }
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error)
-      setFeedback({ type: 'error', text: 'Erro de conexão ao enviar mensagem' })
+      setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'Erro de conexão ao enviar mensagem' })
     } finally {
       setSending(false)
+      setUploading(false)
     }
   }
 
@@ -80,134 +144,6 @@ export function ChatView({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
-    }
-  }
-
-  const handleSendAudio = async (audioBlob: Blob) => {
-    if (!session_id || sending) return
-
-    setSending(true)
-    setFeedback(null)
-
-    try {
-      // 1. Upload do áudio para Supabase
-      const formData = new FormData()
-      formData.append('audio', audioBlob, 'audio.webm')
-
-      const uploadResponse = await fetch('/api/upload-audio', {
-        method: 'POST',
-        body: formData
-      })
-
-      const uploadData = await uploadResponse.json()
-
-      if (!uploadResponse.ok) {
-        throw new Error(uploadData.error || 'Erro ao fazer upload do áudio')
-      }
-
-      // 2. Enviar mensagem com URL do áudio
-      const response = await fetch('/api/send-message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: session_id,
-          messageType: 'audio' as MessageType,
-          message: 'Áudio enviado pelo atendente',
-          mediaUrl: uploadData.audioUrl,
-          clientName: conversation?.clientName || session_id
-        })
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setFeedback({ type: 'success', text: 'Áudio enviado com sucesso!' })
-        setMode('text') // Voltar para modo texto
-
-        // Atualizar conversações
-        if (onUpdateConversations) {
-          await onUpdateConversations()
-        }
-
-        setTimeout(() => setFeedback(null), 3000)
-      } else {
-        setFeedback({ type: 'error', text: data.error || 'Erro ao enviar áudio' })
-      }
-    } catch (error) {
-      console.error('Erro ao enviar áudio:', error)
-      setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'Erro ao enviar áudio' })
-    } finally {
-      setSending(false)
-    }
-  }
-
-  const handleSendMedia = async (file: File, mediaType: MessageType) => {
-    if (!session_id || sending) return
-
-    setSending(true)
-    setFeedback(null)
-
-    try {
-      // 1. Upload do arquivo para Supabase
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('type', mediaType)
-
-      const uploadResponse = await fetch('/api/upload-media', {
-        method: 'POST',
-        body: formData
-      })
-
-      const uploadData = await uploadResponse.json()
-
-      if (!uploadResponse.ok) {
-        throw new Error(uploadData.error || 'Erro ao fazer upload do arquivo')
-      }
-
-      // 2. Enviar mensagem com URL do arquivo
-      const response = await fetch('/api/send-message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: session_id,
-          messageType: mediaType,
-          message: file.name,
-          mediaUrl: uploadData.mediaUrl,
-          clientName: conversation?.clientName || session_id
-        })
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        const labels = {
-          audio: 'Áudio',
-          image: 'Imagem',
-          document: 'Documento',
-          video: 'Vídeo',
-          text: 'Mensagem'
-        }
-        setFeedback({ type: 'success', text: `${labels[mediaType]} enviado com sucesso!` })
-        setMode('text') // Voltar para modo texto
-
-        // Atualizar conversações
-        if (onUpdateConversations) {
-          await onUpdateConversations()
-        }
-
-        setTimeout(() => setFeedback(null), 3000)
-      } else {
-        setFeedback({ type: 'error', text: data.error || 'Erro ao enviar arquivo' })
-      }
-    } catch (error) {
-      console.error('Erro ao enviar arquivo:', error)
-      setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'Erro ao enviar arquivo' })
-    } finally {
-      setSending(false)
     }
   }
 
@@ -349,112 +285,78 @@ export function ChatView({
           </div>
         )}
 
-        {/* Modo gravação de áudio */}
-        {mode === 'audio' && (
-          <AudioRecorder
-            onSendAudio={handleSendAudio}
-            onCancel={() => setMode('text')}
-            disabled={sending}
-          />
-        )}
-
-        {/* Modo upload de imagem */}
-        {mode === 'image' && (
-          <MediaUploader
-            onFileSelect={handleSendMedia}
-            onCancel={() => setMode('text')}
-            disabled={sending}
-            mediaType="image"
-          />
-        )}
-
-        {/* Modo upload de documento */}
-        {mode === 'document' && (
-          <MediaUploader
-            onFileSelect={handleSendMedia}
-            onCancel={() => setMode('text')}
-            disabled={sending}
-            mediaType="document"
-          />
-        )}
-
-        {/* Modo texto (padrão) */}
-        {mode === 'text' && (
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Digite sua mensagem..."
-              disabled={sending}
-              className="flex-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-
-            {/* Botão de gravar áudio */}
-            <button
-              onClick={() => setMode('audio')}
-              disabled={sending}
-              className="bg-[var(--primary)] text-white p-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Gravar áudio"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                <line x1="12" x2="12" y1="19" y2="22"/>
-              </svg>
-            </button>
-
-            {/* Botão de anexar imagem */}
-            <button
-              onClick={() => setMode('image')}
-              disabled={sending}
-              className="bg-[var(--primary)] text-white p-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Enviar imagem"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-                <circle cx="9" cy="9" r="2"/>
-                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-              </svg>
-            </button>
-
-            {/* Botão de anexar documento */}
-            <button
-              onClick={() => setMode('document')}
-              disabled={sending}
-              className="bg-[var(--primary)] text-white p-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Enviar documento"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
-                <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
-                <path d="M10 9H8"/>
-                <path d="M16 13H8"/>
-                <path d="M16 17H8"/>
-              </svg>
-            </button>
-
-            {/* Botão de enviar texto */}
-            <button
-              onClick={handleSendMessage}
-              disabled={!message.trim() || sending}
-              className="bg-[var(--primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {sending ? (
-                <>
-                  <Loader2 size={18} className="animate-spin" />
-                  <span>Enviando...</span>
-                </>
+        {/* Preview do arquivo selecionado */}
+        {selectedFile && (
+          <div className="mb-3 p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg">
+            <div className="flex items-center gap-3">
+              {filePreview ? (
+                <img src={filePreview} alt="Preview" className="w-16 h-16 object-cover rounded" />
               ) : (
-                <>
-                  <Send size={18} />
-                  <span>Enviar</span>
-                </>
+                <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
+                  <ImageIcon size={24} className="text-gray-400" />
+                </div>
               )}
-            </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+                <p className="text-xs text-[var(--muted)]">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+              </div>
+              <button
+                onClick={handleRemoveFile}
+                className="p-2 hover:bg-[var(--card-hover)] rounded transition-colors"
+                disabled={sending}
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
         )}
+
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileSelect}
+            accept="image/*,audio/*,video/*,.pdf,.doc,.docx"
+            className="hidden"
+            disabled={sending}
+          />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending}
+            className="p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Anexar arquivo"
+          >
+            <Paperclip size={18} />
+          </button>
+
+          <input
+            type="text"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder={selectedFile ? "Mensagem opcional..." : "Digite sua mensagem..."}
+            disabled={sending}
+            className="flex-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={(!message.trim() && !selectedFile) || sending}
+            className="bg-[var(--primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {sending ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                <span>{uploading ? 'Enviando arquivo...' : 'Enviando...'}</span>
+              </>
+            ) : (
+              <>
+                <Send size={18} />
+                <span>Enviar</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )
