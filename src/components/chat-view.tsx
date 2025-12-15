@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { User, Bot, Send, Loader2, Paperclip, X, Image as ImageIcon } from 'lucide-react'
-import type { Conversation } from '@/lib/types'
+import { User, Bot, Send, Loader2, Paperclip, X, Image as ImageIcon, Mic } from 'lucide-react'
+import type { Conversation, MessageType } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
+import { AudioRecorder } from './audio-recorder'
 
 function isToolMessage(content: string): boolean {
   return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
@@ -22,6 +23,7 @@ export function ChatView({
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [isRecordingMode, setIsRecordingMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -113,7 +115,15 @@ export function ChatView({
         body: JSON.stringify({
           phone: session_id,
           message: message.trim() || selectedFile?.name || '',
-          messageType: selectedFile ? (selectedFile.type.startsWith('image/') ? 'image' : 'file') : 'text',
+          messageType: selectedFile
+            ? (selectedFile.type.startsWith('image/')
+              ? 'image'
+              : selectedFile.type.startsWith('audio/')
+                ? 'audio'
+                : selectedFile.type.startsWith('video/')
+                  ? 'video'
+                  : 'document')
+            : 'text',
           mediaUrl,
           clientName: conversation?.clientName || session_id
         })
@@ -144,6 +154,60 @@ export function ChatView({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
+    }
+  }
+
+  const handleSendAudio = async (audioBlob: Blob) => {
+    if (!session_id || sending) return
+
+    setSending(true)
+    setFeedback(null)
+
+    try {
+      // 1. Upload do áudio para Supabase
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'audio.webm')
+
+      const uploadResponse = await fetch('/api/upload-audio', {
+        method: 'POST',
+        body: formData
+      })
+
+      const uploadData = await uploadResponse.json()
+
+      if (!uploadResponse.ok) {
+        throw new Error(uploadData.error || 'Erro ao fazer upload do áudio')
+      }
+
+      // 2. Enviar mensagem com URL do áudio
+      const response = await fetch('/api/send-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: session_id,
+          messageType: 'audio' as MessageType,
+          message: 'Áudio enviado pelo atendente',
+          mediaUrl: uploadData.audioUrl,
+          clientName: conversation?.clientName || session_id
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setFeedback({ type: 'success', text: 'Áudio enviado com sucesso!' })
+        setIsRecordingMode(false)
+        setTimeout(() => setFeedback(null), 3000)
+      } else {
+        setFeedback({ type: 'error', text: data.error || 'Erro ao enviar áudio' })
+      }
+    } catch (error) {
+      console.error('Erro ao enviar áudio:', error)
+      setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'Erro ao enviar áudio' })
+    } finally {
+      setSending(false)
     }
   }
 
@@ -285,78 +349,109 @@ export function ChatView({
           </div>
         )}
 
-        {/* Preview do arquivo selecionado */}
-        {selectedFile && (
-          <div className="mb-3 p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg">
-            <div className="flex items-center gap-3">
-              {filePreview ? (
-                <img src={filePreview} alt="Preview" className="w-16 h-16 object-cover rounded" />
-              ) : (
-                <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
-                  <ImageIcon size={24} className="text-gray-400" />
+        {/* Modo de gravação de áudio */}
+        {isRecordingMode ? (
+          <AudioRecorder
+            onSendAudio={handleSendAudio}
+            onCancel={() => setIsRecordingMode(false)}
+            disabled={sending}
+          />
+        ) : (
+          <>
+            {/* Preview do arquivo selecionado */}
+            {selectedFile && (
+              <div className="mb-3 p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg">
+                <div className="flex items-center gap-3">
+                  {filePreview ? (
+                    <img src={filePreview} alt="Preview" className="w-16 h-16 object-cover rounded" />
+                  ) : selectedFile.type.startsWith('audio/') ? (
+                    <div className="w-16 h-16 bg-purple-500/20 rounded flex items-center justify-center">
+                      <Mic size={24} className="text-purple-400" />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
+                      <ImageIcon size={24} className="text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+                    <p className="text-xs text-[var(--muted)]">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    {selectedFile.type.startsWith('audio/') && (
+                      <audio
+                        src={URL.createObjectURL(selectedFile)}
+                        controls
+                        className="mt-2 h-8 w-full"
+                      />
+                    )}
+                  </div>
+                  <button
+                    onClick={handleRemoveFile}
+                    className="p-2 hover:bg-[var(--card-hover)] rounded transition-colors"
+                    disabled={sending}
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{selectedFile.name}</p>
-                <p className="text-xs text-[var(--muted)]">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
               </div>
-              <button
-                onClick={handleRemoveFile}
-                className="p-2 hover:bg-[var(--card-hover)] rounded transition-colors"
+            )}
+
+            <div className="flex gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileSelect}
+                accept="image/*,audio/*,video/*,.pdf,.doc,.docx"
+                className="hidden"
                 disabled={sending}
+              />
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending}
+                className="p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Anexar arquivo"
               >
-                <X size={18} />
+                <Paperclip size={18} />
+              </button>
+
+              <button
+                onClick={() => setIsRecordingMode(true)}
+                disabled={sending || !!selectedFile}
+                className="p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Gravar áudio"
+              >
+                <Mic size={18} />
+              </button>
+
+              <input
+                type="text"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={selectedFile ? "Mensagem opcional..." : "Digite sua mensagem..."}
+                disabled={sending}
+                className="flex-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <button
+                onClick={handleSendMessage}
+                disabled={(!message.trim() && !selectedFile) || sending}
+                className="bg-[var(--primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {sending ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    <span>{uploading ? 'Enviando arquivo...' : 'Enviando...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={18} />
+                    <span>Enviar</span>
+                  </>
+                )}
               </button>
             </div>
-          </div>
+          </>
         )}
-
-        <div className="flex gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            onChange={handleFileSelect}
-            accept="image/*,audio/*,video/*,.pdf,.doc,.docx"
-            className="hidden"
-            disabled={sending}
-          />
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={sending}
-            className="p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Anexar arquivo"
-          >
-            <Paperclip size={18} />
-          </button>
-
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={selectedFile ? "Mensagem opcional..." : "Digite sua mensagem..."}
-            disabled={sending}
-            className="flex-1 bg-[var(--background)] border border-[var(--border)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={(!message.trim() && !selectedFile) || sending}
-            className="bg-[var(--primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {sending ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                <span>{uploading ? 'Enviando arquivo...' : 'Enviando...'}</span>
-              </>
-            ) : (
-              <>
-                <Send size={18} />
-                <span>Enviar</span>
-              </>
-            )}
-          </button>
-        </div>
       </div>
     </div>
   )
