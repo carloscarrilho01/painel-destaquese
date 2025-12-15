@@ -3,6 +3,7 @@ export type MessageType = 'text' | 'audio' | 'image' | 'document' | 'video'
 export type ChatMessage = {
   id: number
   session_id: string
+  media_url?: string | null
   message: {
     type: string
     content: string

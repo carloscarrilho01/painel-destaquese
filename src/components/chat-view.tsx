@@ -251,20 +251,12 @@ export function ChatView({
         {messagesToShow.map((chat) => {
           const isHuman = chat.message.type === 'human'
 
-          // Verificar diferentes locais onde a imagem pode estar
-          // Tentar no objeto message primeiro
-          let imageUrl = chat.message.additional_kwargs?.image ||
-                        (chat.message as any).image ||
-                        (chat.message as any).media_url ||
-                        (chat.message as any).mediaUrl
-
-          // Se não achou, tentar no nível raiz do chat
-          if (!imageUrl) {
-            imageUrl = (chat as any).mediaUrl ||
-                      (chat as any).media_url ||
-                      (chat as any).image_url ||
-                      (chat as any).imageUrl
-          }
+          // Priorizar o campo media_url do nível raiz (tabela chats)
+          const imageUrl = chat.media_url ||
+                          chat.message.additional_kwargs?.image ||
+                          (chat.message as any).image ||
+                          (chat.message as any).media_url ||
+                          (chat.message as any).mediaUrl
 
           // Verificar se o conteúdo é um nome de arquivo de imagem
           const isImageFilename = chat.message.content?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
