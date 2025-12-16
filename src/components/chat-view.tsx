@@ -5,6 +5,7 @@ import { User, Bot, Send, Loader2, Paperclip, X, Image as ImageIcon, Mic } from 
 import type { Conversation, MessageType } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 import { AudioRecorder } from './audio-recorder'
+import { QuickMessagesSelector } from './quick-messages-selector'
 
 function isToolMessage(content: string): boolean {
   return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
@@ -346,6 +347,17 @@ export function ChatView({
               : 'bg-red-500/10 text-red-500 border border-red-500/30'
           }`}>
             {feedback.text}
+          </div>
+        )}
+
+        {/* Mensagens Rápidas */}
+        {!isRecordingMode && (
+          <div className="mb-3">
+            <QuickMessagesSelector
+              onSelect={(text) => setMessage(text)}
+              clientName={conversation.clientName}
+              disabled={sending}
+            />
           </div>
         )}
 

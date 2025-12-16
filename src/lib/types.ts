@@ -27,6 +27,28 @@ export type Lead = {
   stage?: 'novo' | 'contato' | 'interessado' | 'negociacao' | 'fechado' | 'perdido'
 }
 
+export type QuickMessage = {
+  id: string
+  titulo: string
+  conteudo: string
+  categoria: string | null
+  atalho: string | null
+  ordem: number
+  ativo: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type QuickMessageCategory = 'saudacao' | 'vendas' | 'suporte' | 'encerramento' | 'outros'
+
+export const QUICK_MESSAGE_CATEGORIES: { value: QuickMessageCategory; label: string }[] = [
+  { value: 'saudacao', label: 'Saudação' },
+  { value: 'vendas', label: 'Vendas' },
+  { value: 'suporte', label: 'Suporte' },
+  { value: 'encerramento', label: 'Encerramento' },
+  { value: 'outros', label: 'Outros' },
+]
+
 export type Conversation = {
   session_id: string
   clientName?: string

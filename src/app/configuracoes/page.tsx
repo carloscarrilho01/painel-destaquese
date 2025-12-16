@@ -1,9 +1,18 @@
+'use client'
+
+import { QuickMessagesManager } from '@/components/quick-messages-manager'
+
 export default function ConfiguracoesPage() {
   return (
     <div className="p-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold">Configuracoes</h1>
         <p className="text-[var(--muted)]">Configuracoes do painel</p>
+      </div>
+
+      {/* Gerenciador de Mensagens Rápidas */}
+      <div className="mb-6">
+        <QuickMessagesManager />
       </div>
 
       <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-6">
@@ -96,6 +105,21 @@ followup: int4
 last_followup: timestamptz
 interesse: text
 interessado: bool`}
+            </pre>
+          </div>
+
+          <div>
+            <h3 className="font-medium mb-2">Tabela: quick_messages</h3>
+            <pre className="text-sm bg-[var(--background)] p-4 rounded-lg overflow-x-auto">
+{`id: uuid (primary key, default: gen_random_uuid())
+titulo: varchar(100) NOT NULL
+conteudo: text NOT NULL
+categoria: varchar(50) (nullable)
+atalho: varchar(20) (nullable, unique)
+ordem: int4 (default: 0)
+ativo: bool (default: true)
+created_at: timestamptz (default: now())
+updated_at: timestamptz (default: now())`}
             </pre>
           </div>
         </div>
