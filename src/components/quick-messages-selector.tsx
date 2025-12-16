@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Zap, ChevronDown, Search, X } from 'lucide-react'
-import type { QuickMessage } from '@/lib/types'
+import { Zap, ChevronDown, Search, X, Plus, Save, Loader2 } from 'lucide-react'
+import type { QuickMessage, QuickMessageCategory } from '@/lib/types'
 import { QUICK_MESSAGE_CATEGORIES } from '@/lib/types'
 
 interface QuickMessagesSelectorProps {
@@ -18,6 +18,16 @@ export function QuickMessagesSelector({ onSelect, clientName, disabled }: QuickM
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Estado do formulário de cadastro
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [formData, setFormData] = useState({
+    titulo: '',
+    conteudo: '',
+    categoria: '' as QuickMessageCategory | '',
+    atalho: '',
+  })
 
   useEffect(() => {
     fetchMessages()
@@ -79,6 +89,39 @@ export function QuickMessagesSelector({ onSelect, clientName, disabled }: QuickM
     setSelectedCategory(null)
   }
 
+  const resetForm = () => {
+    setFormData({ titulo: '', conteudo: '', categoria: '', atalho: '' })
+    setShowForm(false)
+  }
+
+  const handleSaveMessage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.titulo || !formData.conteudo) return
+
+    setSaving(true)
+    try {
+      const response = await fetch('/api/quick-messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titulo: formData.titulo,
+          conteudo: formData.conteudo,
+          categoria: formData.categoria || null,
+          atalho: formData.atalho || null,
+        }),
+      })
+
+      if (response.ok) {
+        resetForm()
+        fetchMessages()
+      }
+    } catch (error) {
+      console.error('Erro ao salvar mensagem:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // Filtrar mensagens por busca e categoria
   const filteredMessages = messages.filter(msg => {
     const matchesSearch = search === '' ||
@@ -133,59 +176,161 @@ export function QuickMessagesSelector({ onSelect, clientName, disabled }: QuickM
           {messages.length > 4 ? `+${messages.length - 4} mais` : 'Mensagens Rápidas'}
           <ChevronDown size={12} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </button>
+
+        {/* Botão para cadastrar nova */}
+        <button
+          onClick={() => { setIsOpen(true); setShowForm(true) }}
+          disabled={disabled}
+          className="px-3 py-1.5 text-xs bg-green-500/10 text-green-500 border border-green-500/30 rounded-full hover:bg-green-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+          title="Cadastrar nova mensagem rápida"
+        >
+          <Plus size={12} />
+          Nova
+        </button>
       </div>
 
       {/* Dropdown expandido */}
       {isOpen && (
-        <div className="absolute bottom-full left-0 mb-2 w-96 max-h-96 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50 overflow-hidden">
-          {/* Header com busca */}
-          <div className="p-3 border-b border-[var(--border)]">
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
-              <input
-                type="text"
-                placeholder="Buscar mensagem ou atalho..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-              />
-              {search && (
+        <div className="absolute bottom-full left-0 mb-2 w-96 max-h-[28rem] bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50 overflow-hidden">
+          {/* Formulário de cadastro */}
+          {showForm ? (
+            <form onSubmit={handleSaveMessage} className="p-3">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-medium text-sm flex items-center gap-2">
+                  <Plus size={16} className="text-green-500" />
+                  Nova Mensagem Rápida
+                </h3>
                 <button
-                  onClick={() => setSearch('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--foreground)]"
+                  type="button"
+                  onClick={resetForm}
+                  className="p-1 hover:bg-[var(--background)] rounded"
                 >
                   <X size={16} />
                 </button>
-              )}
-            </div>
+              </div>
 
-            {/* Filtros por categoria */}
-            <div className="flex gap-1 mt-2 flex-wrap">
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className={`px-2 py-1 text-xs rounded ${
-                  selectedCategory === null
-                    ? 'bg-[var(--primary)] text-white'
-                    : 'bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]'
-                }`}
-              >
-                Todas
-              </button>
-              {QUICK_MESSAGE_CATEGORIES.map((cat) => (
+              <div className="space-y-3">
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Título (ex: Saudação)"
+                    value={formData.titulo}
+                    onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  />
+                </div>
+
+                <div>
+                  <textarea
+                    placeholder="Conteúdo da mensagem... (use {nome} para o nome do cliente)"
+                    value={formData.conteudo}
+                    onChange={(e) => setFormData({ ...formData, conteudo: e.target.value })}
+                    required
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={formData.categoria}
+                    onChange={(e) => setFormData({ ...formData, categoria: e.target.value as QuickMessageCategory | '' })}
+                    className="px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  >
+                    <option value="">Categoria...</option>
+                    {QUICK_MESSAGE_CATEGORIES.map((cat) => (
+                      <option key={cat.value} value={cat.value}>{cat.label}</option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="text"
+                    placeholder="Atalho (ex: /oi)"
+                    value={formData.atalho}
+                    onChange={(e) => setFormData({ ...formData, atalho: e.target.value })}
+                    className="px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  />
+                </div>
+
                 <button
-                  key={cat.value}
-                  onClick={() => setSelectedCategory(cat.value)}
-                  className={`px-2 py-1 text-xs rounded ${
-                    selectedCategory === cat.value
-                      ? 'bg-[var(--primary)] text-white'
-                      : 'bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]'
-                  }`}
+                  type="submit"
+                  disabled={saving || !formData.titulo || !formData.conteudo}
+                  className="w-full bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
                 >
-                  {cat.label}
+                  {saving ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      Salvar Mensagem
+                    </>
+                  )}
                 </button>
-              ))}
-            </div>
-          </div>
+              </div>
+            </form>
+          ) : (
+            <>
+              {/* Header com busca */}
+              <div className="p-3 border-b border-[var(--border)]">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+                    <input
+                      type="text"
+                      placeholder="Buscar mensagem ou atalho..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="w-full pl-9 pr-8 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    />
+                    {search && (
+                      <button
+                        onClick={() => setSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--foreground)]"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowForm(true)}
+                    className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                    title="Cadastrar nova"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+
+                {/* Filtros por categoria */}
+                <div className="flex gap-1 mt-2 flex-wrap">
+                  <button
+                    onClick={() => setSelectedCategory(null)}
+                    className={`px-2 py-1 text-xs rounded ${
+                      selectedCategory === null
+                        ? 'bg-[var(--primary)] text-white'
+                        : 'bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]'
+                    }`}
+                  >
+                    Todas
+                  </button>
+                  {QUICK_MESSAGE_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.value}
+                      onClick={() => setSelectedCategory(cat.value)}
+                      className={`px-2 py-1 text-xs rounded ${
+                        selectedCategory === cat.value
+                          ? 'bg-[var(--primary)] text-white'
+                          : 'bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
           {/* Lista de mensagens */}
           <div className="max-h-64 overflow-y-auto">
@@ -235,6 +380,8 @@ export function QuickMessagesSelector({ onSelect, clientName, disabled }: QuickM
               Dica: Use <code className="bg-[var(--card)] px-1 rounded">{'{nome}'}</code> para inserir o nome do cliente
             </p>
           </div>
+            </>
+          )}
         </div>
       )}
     </div>
