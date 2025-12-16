@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Zap, ChevronDown, Search, X, Plus, Save, Loader2 } from 'lucide-react'
+import { Zap, ChevronDown, Search, X, Plus, Save, Loader2, Trash2 } from 'lucide-react'
 import type { QuickMessage, QuickMessageCategory } from '@/lib/types'
 import { QUICK_MESSAGE_CATEGORIES } from '@/lib/types'
 
@@ -119,6 +119,23 @@ export function QuickMessagesSelector({ onSelect, clientName, disabled }: QuickM
       console.error('Erro ao salvar mensagem:', error)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDeleteMessage = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    if (!confirm('Tem certeza que deseja excluir esta mensagem rápida?')) return
+
+    try {
+      const response = await fetch(`/api/quick-messages?id=${id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        fetchMessages()
+      }
+    } catch (error) {
+      console.error('Erro ao excluir mensagem:', error)
     }
   }
 
@@ -351,23 +368,34 @@ export function QuickMessagesSelector({ onSelect, clientName, disabled }: QuickM
                     {getCategoryLabel(categoria)}
                   </div>
                   {msgs.map((msg) => (
-                    <button
+                    <div
                       key={msg.id}
-                      onClick={() => handleSelect(msg)}
-                      className="w-full px-3 py-2 text-left hover:bg-[var(--card-hover)] transition-colors border-b border-[var(--border)] last:border-b-0"
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-[var(--card-hover)] transition-colors border-b border-[var(--border)] last:border-b-0"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm">{msg.titulo}</span>
-                        {msg.atalho && (
-                          <code className="text-xs bg-[var(--background)] px-1.5 py-0.5 rounded text-[var(--muted)]">
-                            {msg.atalho}
-                          </code>
-                        )}
-                      </div>
-                      <p className="text-xs text-[var(--muted)] mt-1 line-clamp-2">
-                        {processContent(msg.conteudo)}
-                      </p>
-                    </button>
+                      <button
+                        onClick={() => handleSelect(msg)}
+                        className="flex-1 text-left"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{msg.titulo}</span>
+                          {msg.atalho && (
+                            <code className="text-xs bg-[var(--background)] px-1.5 py-0.5 rounded text-[var(--muted)]">
+                              {msg.atalho}
+                            </code>
+                          )}
+                        </div>
+                        <p className="text-xs text-[var(--muted)] mt-1 line-clamp-2">
+                          {processContent(msg.conteudo)}
+                        </p>
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteMessage(e, msg.id)}
+                        className="p-1.5 text-[var(--muted)] hover:text-red-500 hover:bg-red-500/10 rounded transition-colors flex-shrink-0"
+                        title="Excluir mensagem"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               ))
