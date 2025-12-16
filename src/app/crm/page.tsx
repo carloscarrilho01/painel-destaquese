@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { KanbanBoard } from '@/components/kanban-board'
 import { AddLeadModal } from '@/components/add-lead-modal'
+import { LeadFormModal } from '@/components/lead-form-modal'
 import { Loader2, TrendingUp, Users, CheckCircle, XCircle, AlertCircle, UserPlus } from 'lucide-react'
 import type { Lead } from '@/lib/types'
 
@@ -17,6 +18,8 @@ export default function CRMPage() {
   const [updating, setUpdating] = useState(false)
   const [showSetupWarning, setShowSetupWarning] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
   useEffect(() => {
     fetchLeads()
@@ -96,6 +99,79 @@ export default function CRMPage() {
   const handleLeadClick = (lead: Lead) => {
     // Redirecionar para a conversa do lead
     router.push(`/conversas?session=${lead.telefone}`)
+  }
+
+  const handleEditLead = (lead: Lead) => {
+    setSelectedLead(lead)
+    setShowEditModal(true)
+  }
+
+  const handleDeleteLead = async (lead: Lead) => {
+    const confirmDelete = window.confirm(
+      `Tem certeza que deseja excluir o lead "${lead.nome || lead.telefone}"?\n\nEsta ação não pode ser desfeita.`
+    )
+
+    if (!confirmDelete) return
+
+    setUpdating(true)
+
+    try {
+      const response = await fetch(`/api/update-lead?id=${lead.id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        // Remover lead do estado local
+        setLeads(prevLeads => prevLeads.filter(l => l.id !== lead.id))
+        alert('Lead excluído com sucesso!')
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Erro ao excluir lead. Tente novamente.')
+      }
+    } catch (error) {
+      console.error('Erro ao excluir lead:', error)
+      alert('Erro de conexão. Tente novamente.')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const handleSaveLead = async (leadData: Partial<Lead>) => {
+    setUpdating(true)
+
+    try {
+      const response = await fetch('/api/update-lead', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          leadId: selectedLead?.id,
+          updates: leadData
+        })
+      })
+
+      if (response.ok) {
+        const { lead: updatedLead } = await response.json()
+
+        // Atualizar lead no estado local
+        setLeads(prevLeads =>
+          prevLeads.map(l => l.id === updatedLead.id ? updatedLead : l)
+        )
+
+        alert('Lead atualizado com sucesso!')
+        setShowEditModal(false)
+        setSelectedLead(null)
+      } else {
+        const data = await response.json()
+        throw new Error(data.error || 'Erro ao atualizar lead')
+      }
+    } catch (error) {
+      console.error('Erro ao salvar lead:', error)
+      throw error
+    } finally {
+      setUpdating(false)
+    }
   }
 
   // Estatísticas
@@ -228,6 +304,8 @@ export default function CRMPage() {
           leads={leads}
           onStageChange={handleStageChange}
           onLeadClick={handleLeadClick}
+          onEdit={handleEditLead}
+          onDelete={handleDeleteLead}
         />
       </div>
 
@@ -236,6 +314,18 @@ export default function CRMPage() {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onLeadAdded={fetchLeads}
+      />
+
+      {/* Modal Editar Lead */}
+      <LeadFormModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false)
+          setSelectedLead(null)
+        }}
+        onSave={handleSaveLead}
+        lead={selectedLead}
+        mode="edit"
       />
     </div>
   )

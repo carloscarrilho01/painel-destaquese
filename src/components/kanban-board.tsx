@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Phone, Calendar, MessageSquare, Lock, Unlock, GripVertical } from 'lucide-react'
+import { Phone, Calendar, MessageSquare, Lock, Unlock, GripVertical, Edit2, Trash2 } from 'lucide-react'
 import type { Lead } from '@/lib/types'
 
 type Stage = 'novo' | 'contato' | 'interessado' | 'negociacao' | 'fechado' | 'perdido'
@@ -19,10 +19,13 @@ interface KanbanBoardProps {
   leads: Lead[]
   onStageChange: (leadId: string, newStage: Stage) => Promise<void>
   onLeadClick?: (lead: Lead) => void
+  onEdit?: (lead: Lead) => void
+  onDelete?: (lead: Lead) => void
 }
 
-export function KanbanBoard({ leads, onStageChange, onLeadClick }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelete }: KanbanBoardProps) {
   const [draggingLead, setDraggingLead] = useState<string | null>(null)
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null)
 
   // Agrupar leads por stage
   const leadsByStage = STAGES.reduce((acc, stage) => {
@@ -102,13 +105,47 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick }: KanbanBoardPr
                     key={lead.id}
                     draggable
                     onDragStart={() => handleDragStart(lead.id)}
-                    onClick={() => onLeadClick?.(lead)}
-                    className={`bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 cursor-move hover:shadow-lg transition-all ${
+                    onMouseEnter={() => setHoveredCard(lead.id)}
+                    onMouseLeave={() => setHoveredCard(null)}
+                    className={`bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 cursor-move hover:shadow-lg transition-all relative ${
                       draggingLead === lead.id ? 'opacity-50' : ''
                     } hover:border-[var(--primary)]`}
                   >
+                    {/* Botões de ação - aparecem no hover */}
+                    {hoveredCard === lead.id && (onEdit || onDelete) && (
+                      <div className="absolute top-2 right-2 flex gap-1 z-10">
+                        {onEdit && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onEdit(lead)
+                            }}
+                            className="p-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-500 rounded transition-colors"
+                            title="Editar lead"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onDelete(lead)
+                            }}
+                            className="p-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-500 rounded transition-colors"
+                            title="Excluir lead"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {/* Header do card */}
-                    <div className="flex items-start justify-between mb-2">
+                    <div
+                      className="flex items-start justify-between mb-2"
+                      onClick={() => onLeadClick?.(lead)}
+                    >
                       <div className="flex-1">
                         <h4 className="font-medium text-sm">
                           {lead.nome || 'Sem nome'}
