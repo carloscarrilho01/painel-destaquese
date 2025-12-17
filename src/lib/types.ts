@@ -1,6 +1,7 @@
 export type MessageType = 'text' | 'audio' | 'image' | 'document' | 'video'
 
-export type Stage = 'novo' | 'contato' | 'interessado' | 'negociacao' | 'fechado' | 'perdido'
+// Stage agora aceita qualquer string para permitir colunas customizáveis
+export type Stage = string
 
 /**
  * Normaliza um número de telefone brasileiro para o formato padrão
