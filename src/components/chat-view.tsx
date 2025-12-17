@@ -295,20 +295,6 @@ export function ChatView({
                   </span>
                 </div>
 
-                {/* Debug: Mostrar estrutura do objeto se for imagem */}
-                {isImageFilename && !imageUrl && (
-                  <div className="mb-2">
-                    <p className="text-xs font-bold mb-1">DEBUG - chat.message:</p>
-                    <pre className="text-xs bg-black/20 p-2 rounded overflow-auto mb-2">
-                      {JSON.stringify(chat.message, null, 2)}
-                    </pre>
-                    <p className="text-xs font-bold mb-1">DEBUG - chat completo:</p>
-                    <pre className="text-xs bg-black/20 p-2 rounded overflow-auto">
-                      {JSON.stringify(chat, null, 2)}
-                    </pre>
-                  </div>
-                )}
-
                 {/* Renderizar imagem se existir */}
                 {imageUrl && (
                   <div className="mb-2">

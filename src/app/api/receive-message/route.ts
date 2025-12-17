@@ -25,13 +25,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Log para debug
-    console.log('📨 [Webhook] Nova mensagem recebida:', {
-      session_id,
-      type,
-      message: message.substring(0, 50) + '...'
-    })
-
     // Broadcast para todos os clientes conectados via Server-Sent Events (SSE)
     // Ou usar um sistema de pub/sub como Pusher, Ably, etc.
 
@@ -45,7 +38,6 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('❌ [Webhook] Erro ao processar mensagem:', error)
     return NextResponse.json(
       { error: 'Erro interno ao processar mensagem' },
       { status: 500 }
