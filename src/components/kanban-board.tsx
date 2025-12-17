@@ -1,21 +1,44 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Phone, Calendar, MessageSquare, Lock, Unlock, GripVertical, Edit2, Trash2, Check, X, Link as LinkIcon, Settings } from 'lucide-react'
+import { Phone, Calendar, MessageSquare, Lock, Unlock, GripVertical, Edit2, Trash2, Check, X, Link as LinkIcon, Settings, Plus } from 'lucide-react'
 import type { Lead } from '@/lib/types'
 
-type Stage = 'novo' | 'contato' | 'interessado' | 'negociacao' | 'fechado' | 'perdido'
+type Stage = string
 
-const DEFAULT_STAGES: { id: Stage; label: string; color: string; bgColor: string }[] = [
+type StageConfig = {
+  id: string
+  label: string
+  color: string
+  bgColor: string
+  isCustom?: boolean
+}
+
+const DEFAULT_STAGES: StageConfig[] = [
   { id: 'novo', label: 'Novo Lead', color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/30' },
   { id: 'contato', label: 'Em Contato', color: 'text-purple-500', bgColor: 'bg-purple-500/10 border-purple-500/30' },
   { id: 'interessado', label: 'Interessado', color: 'text-yellow-500', bgColor: 'bg-yellow-500/10 border-yellow-500/30' },
   { id: 'negociacao', label: 'Negociação', color: 'text-orange-500', bgColor: 'bg-orange-500/10 border-orange-500/30' },
   { id: 'fechado', label: 'Fechado', color: 'text-green-500', bgColor: 'bg-green-500/10 border-green-500/30' },
   { id: 'perdido', label: 'Perdido', color: 'text-red-500', bgColor: 'bg-red-500/10 border-red-500/30' },
+  { id: 'servico_finalizado', label: 'Serviço Finalizado', color: 'text-cyan-500', bgColor: 'bg-cyan-500/10 border-cyan-500/30', isCustom: true },
+]
+
+const AVAILABLE_COLORS = [
+  { name: 'Azul', color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/30' },
+  { name: 'Roxo', color: 'text-purple-500', bgColor: 'bg-purple-500/10 border-purple-500/30' },
+  { name: 'Amarelo', color: 'text-yellow-500', bgColor: 'bg-yellow-500/10 border-yellow-500/30' },
+  { name: 'Laranja', color: 'text-orange-500', bgColor: 'bg-orange-500/10 border-orange-500/30' },
+  { name: 'Verde', color: 'text-green-500', bgColor: 'bg-green-500/10 border-green-500/30' },
+  { name: 'Vermelho', color: 'text-red-500', bgColor: 'bg-red-500/10 border-red-500/30' },
+  { name: 'Ciano', color: 'text-cyan-500', bgColor: 'bg-cyan-500/10 border-cyan-500/30' },
+  { name: 'Rosa', color: 'text-pink-500', bgColor: 'bg-pink-500/10 border-pink-500/30' },
+  { name: 'Índigo', color: 'text-indigo-500', bgColor: 'bg-indigo-500/10 border-indigo-500/30' },
+  { name: 'Cinza', color: 'text-gray-500', bgColor: 'bg-gray-500/10 border-gray-500/30' },
 ]
 
 const STORAGE_KEY = 'kanban_column_names'
+const STAGES_STORAGE_KEY = 'kanban_custom_stages'
 const WEBHOOKS_STORAGE_KEY = 'kanban_webhooks'
 
 type WebhookConfig = {
@@ -23,7 +46,7 @@ type WebhookConfig = {
   url: string
 }
 
-type WebhooksConfig = Record<Stage, WebhookConfig>
+type WebhooksConfig = Record<string, WebhookConfig>
 
 interface KanbanBoardProps {
   leads: Lead[]
@@ -36,27 +59,30 @@ interface KanbanBoardProps {
 export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelete }: KanbanBoardProps) {
   const [draggingLead, setDraggingLead] = useState<string | null>(null)
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
-  const [stages, setStages] = useState(DEFAULT_STAGES)
+  const [stages, setStages] = useState<StageConfig[]>(DEFAULT_STAGES)
   const [editingStage, setEditingStage] = useState<Stage | null>(null)
   const [editValue, setEditValue] = useState('')
   const [webhooks, setWebhooks] = useState<WebhooksConfig>({} as WebhooksConfig)
   const [configuringWebhook, setConfiguringWebhook] = useState<Stage | null>(null)
   const [webhookUrl, setWebhookUrl] = useState('')
   const [webhookEnabled, setWebhookEnabled] = useState(false)
+  const [showNewColumnForm, setShowNewColumnForm] = useState(false)
+  const [newColumnName, setNewColumnName] = useState('')
+  const [newColumnColor, setNewColumnColor] = useState(0)
 
-  // Carregar nomes customizados do localStorage
+  // Carregar stages customizados do localStorage
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
+    const savedStages = localStorage.getItem(STAGES_STORAGE_KEY)
+    if (savedStages) {
       try {
-        const customNames = JSON.parse(saved) as Record<Stage, string>
-        setStages(DEFAULT_STAGES.map(stage => ({
-          ...stage,
-          label: customNames[stage.id] || stage.label
-        })))
+        const parsedStages = JSON.parse(savedStages) as StageConfig[]
+        setStages(parsedStages)
       } catch (e) {
-        // Ignorar erro de parse
+        setStages(DEFAULT_STAGES)
       }
+    } else {
+      setStages(DEFAULT_STAGES)
+      localStorage.setItem(STAGES_STORAGE_KEY, JSON.stringify(DEFAULT_STAGES))
     }
 
     // Carregar webhooks do localStorage
@@ -66,7 +92,6 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
         const parsedWebhooks = JSON.parse(savedWebhooks) as WebhooksConfig
         setWebhooks(parsedWebhooks)
       } catch (e) {
-        // Inicializar com config vazia
         const defaultWebhooks = DEFAULT_STAGES.reduce((acc, stage) => {
           acc[stage.id] = { enabled: false, url: '' }
           return acc
@@ -74,7 +99,6 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
         setWebhooks(defaultWebhooks)
       }
     } else {
-      // Inicializar com config vazia
       const defaultWebhooks = DEFAULT_STAGES.reduce((acc, stage) => {
         acc[stage.id] = { enabled: false, url: '' }
         return acc
@@ -83,13 +107,9 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
     }
   }, [])
 
-  // Salvar nomes customizados no localStorage
-  const saveCustomNames = (updatedStages: typeof DEFAULT_STAGES) => {
-    const customNames = updatedStages.reduce((acc, stage) => {
-      acc[stage.id] = stage.label
-      return acc
-    }, {} as Record<Stage, string>)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(customNames))
+  // Salvar stages no localStorage
+  const saveStages = (updatedStages: StageConfig[]) => {
+    localStorage.setItem(STAGES_STORAGE_KEY, JSON.stringify(updatedStages))
   }
 
   const startEditing = (stageId: Stage, currentLabel: string) => {
@@ -112,7 +132,7 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
       stage.id === stageId ? { ...stage, label: editValue.trim() } : stage
     )
     setStages(updatedStages)
-    saveCustomNames(updatedStages)
+    saveStages(updatedStages)
     cancelEditing()
   }
 
@@ -122,6 +142,76 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
     } else if (e.key === 'Escape') {
       cancelEditing()
     }
+  }
+
+  // Funções para gerenciar colunas
+  const createNewColumn = () => {
+    if (!newColumnName.trim()) return
+
+    const newId = newColumnName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+
+    // Verificar se já existe
+    if (stages.find(s => s.id === newId)) {
+      alert('Já existe uma coluna com este nome!')
+      return
+    }
+
+    const selectedColor = AVAILABLE_COLORS[newColumnColor]
+    const newStage: StageConfig = {
+      id: newId,
+      label: newColumnName.trim(),
+      color: selectedColor.color,
+      bgColor: selectedColor.bgColor,
+      isCustom: true
+    }
+
+    const updatedStages = [...stages, newStage]
+    setStages(updatedStages)
+    saveStages(updatedStages)
+
+    // Adicionar webhook vazio para a nova coluna
+    const updatedWebhooks = {
+      ...webhooks,
+      [newId]: { enabled: false, url: '' }
+    }
+    setWebhooks(updatedWebhooks)
+    localStorage.setItem(WEBHOOKS_STORAGE_KEY, JSON.stringify(updatedWebhooks))
+
+    // Reset form
+    setNewColumnName('')
+    setNewColumnColor(0)
+    setShowNewColumnForm(false)
+  }
+
+  const deleteColumn = (stageId: string) => {
+    const stage = stages.find(s => s.id === stageId)
+    if (!stage?.isCustom) {
+      alert('Não é possível excluir colunas padrão!')
+      return
+    }
+
+    const leadsInStage = leads.filter(lead => (lead as any).stage === stageId)
+    if (leadsInStage.length > 0) {
+      const confirm = window.confirm(
+        `Esta coluna tem ${leadsInStage.length} lead(s). Tem certeza que deseja excluir?\n\nOs leads serão movidos para "Novo Lead".`
+      )
+      if (!confirm) return
+
+      // Mover leads para 'novo'
+      leadsInStage.forEach(lead => {
+        onStageChange(lead.id, 'novo')
+      })
+    }
+
+    const updatedStages = stages.filter(s => s.id !== stageId)
+    setStages(updatedStages)
+    saveStages(updatedStages)
+
+    // Remover webhook
+    const updatedWebhooks = { ...webhooks }
+    delete updatedWebhooks[stageId]
+    setWebhooks(updatedWebhooks)
+    localStorage.setItem(WEBHOOKS_STORAGE_KEY, JSON.stringify(updatedWebhooks))
   }
 
   // Funções de webhook
@@ -331,6 +421,15 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
                       <Edit2 size={14} className="opacity-0 group-hover:opacity-50 transition-opacity" />
                     </h3>
                     <div className="flex items-center gap-2">
+                      {stage.isCustom && (
+                        <button
+                          onClick={() => deleteColumn(stage.id)}
+                          className="p-1.5 rounded transition-colors hover:bg-red-500/20 text-red-500/60 hover:text-red-500"
+                          title="Excluir coluna"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                       <button
                         onClick={() => openWebhookConfig(stage.id)}
                         className={`p-1.5 rounded transition-colors ${
@@ -461,6 +560,80 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
           </div>
         )
       })}
+
+      {/* Botão/Formulário para adicionar nova coluna */}
+      {!showNewColumnForm ? (
+        <div className="flex-shrink-0 w-80">
+          <button
+            onClick={() => setShowNewColumnForm(true)}
+            className="w-full h-32 border-2 border-dashed border-[var(--border)] rounded-lg hover:border-[var(--primary)] hover:bg-[var(--muted)]/10 transition-colors flex flex-col items-center justify-center gap-2 text-[var(--muted)] hover:text-[var(--primary)]"
+          >
+            <Plus size={32} />
+            <span className="font-medium">Adicionar Coluna</span>
+          </button>
+        </div>
+      ) : (
+        <div className="flex-shrink-0 w-80">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+            <h3 className="font-semibold mb-3">Nova Coluna</h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-[var(--muted)] mb-1 block">Nome</label>
+                <input
+                  type="text"
+                  value={newColumnName}
+                  onChange={(e) => setNewColumnName(e.target.value)}
+                  placeholder="Ex: Serviço Finalizado"
+                  className="w-full px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  maxLength={30}
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-[var(--muted)] mb-1 block">Cor</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {AVAILABLE_COLORS.map((colorOption, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setNewColumnColor(index)}
+                      className={`p-2 rounded border-2 transition-all ${
+                        newColumnColor === index
+                          ? 'border-[var(--primary)] scale-110'
+                          : 'border-transparent hover:border-[var(--border)]'
+                      }`}
+                      title={colorOption.name}
+                    >
+                      <div className={`w-full h-4 rounded ${colorOption.bgColor}`}></div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={createNewColumn}
+                  className="flex-1 bg-[var(--primary)] text-white px-4 py-2 rounded hover:bg-[var(--primary-hover)] transition-colors flex items-center justify-center gap-2"
+                >
+                  <Check size={16} />
+                  Criar
+                </button>
+                <button
+                  onClick={() => {
+                    setShowNewColumnForm(false)
+                    setNewColumnName('')
+                    setNewColumnColor(0)
+                  }}
+                  className="px-4 py-2 border border-[var(--border)] rounded hover:bg-[var(--muted)]/10 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
