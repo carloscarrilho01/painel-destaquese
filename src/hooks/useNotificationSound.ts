@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 export function useNotificationSound() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [isEnabled, setIsEnabled] = useState(true)
+  const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
     // Carregar preferência do localStorage
@@ -11,10 +12,18 @@ export function useNotificationSound() {
       setIsEnabled(saved === 'true')
     }
 
-    // Criar elemento de áudio usando um som base64 (notificação curta e agradável)
-    // Este é um beep suave de notificação
+    // Criar elemento de áudio com um som de notificação melhor
     const audio = new Audio()
-    audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTcIGWi77eeeTRAMUKfj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606OunVRUKRp/g8r5sIQUrgs7y2Yk3CBlou+3nnk0QDFD3+O8='
+
+    // Som de notificação mais audível (bipe triplo)
+    audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
+    audio.volume = 0.5
+    audio.preload = 'auto'
+
+    audio.addEventListener('canplaythrough', () => {
+      setIsReady(true)
+    })
+
     audioRef.current = audio
 
     return () => {
@@ -24,16 +33,28 @@ export function useNotificationSound() {
   }, [])
 
   const playSound = () => {
-    if (!isEnabled || !audioRef.current) return
+    if (!isEnabled || !audioRef.current || !isReady) {
+      console.log('🔇 Som não tocou:', { isEnabled, hasAudio: !!audioRef.current, isReady })
+      return
+    }
 
     try {
+      // Reset e toca
       audioRef.current.currentTime = 0
-      audioRef.current.play().catch((error) => {
-        // Ignorar erros de autoplay (requer interação do usuário primeiro)
-        console.debug('Notification sound blocked:', error)
-      })
+      const playPromise = audioRef.current.play()
+
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log('🔔 Som tocado com sucesso!')
+          })
+          .catch((error) => {
+            console.warn('⚠️ Som bloqueado pelo navegador:', error.message)
+            // Tentar criar novo áudio context após interação do usuário
+          })
+      }
     } catch (error) {
-      console.debug('Error playing notification sound:', error)
+      console.error('❌ Erro ao tocar som:', error)
     }
   }
 
@@ -41,11 +62,17 @@ export function useNotificationSound() {
     const newState = !isEnabled
     setIsEnabled(newState)
     localStorage.setItem('notification_sound_enabled', String(newState))
+
+    // Tocar som de teste ao ativar
+    if (newState && audioRef.current) {
+      setTimeout(() => playSound(), 100)
+    }
   }
 
   return {
     playSound,
     isEnabled,
-    toggleSound
+    toggleSound,
+    isReady
   }
 }

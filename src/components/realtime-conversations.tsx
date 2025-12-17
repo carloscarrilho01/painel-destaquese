@@ -98,11 +98,20 @@ export function RealtimeConversations({
 
         // Verificar se há novas mensagens para tocar som
         const currentTotalMessages = chatsResult.data.length
-        if (previousMessageCountRef.current > 0 && currentTotalMessages > previousMessageCountRef.current) {
+        const previousCount = previousMessageCountRef.current
+
+        console.log('📨 Verificando mensagens:', {
+          anterior: previousCount,
+          atual: currentTotalMessages,
+          diferenca: currentTotalMessages - previousCount
+        })
+
+        if (previousCount > 0 && currentTotalMessages > previousCount) {
+          console.log('🔔 Nova mensagem detectada! Tocando som...')
           playSound()
         }
-        previousMessageCountRef.current = currentTotalMessages
 
+        previousMessageCountRef.current = currentTotalMessages
         setConversations(processed)
       }
     } catch (error) {
@@ -143,12 +152,15 @@ export function RealtimeConversations({
   useEffect(() => {
     const initializeMessageCount = async () => {
       try {
-        const { data } = await supabase.from('chats').select('*', { count: 'exact', head: true })
-        if (data !== null) {
-          previousMessageCountRef.current = (data as any[]).length || 0
-        }
+        const { data, count } = await supabase
+          .from('chats')
+          .select('*', { count: 'exact', head: false })
+
+        const messageCount = data?.length || count || 0
+        previousMessageCountRef.current = messageCount
+        console.log('📊 Contador inicializado:', messageCount)
       } catch (error) {
-        console.error('Erro ao inicializar contador:', error)
+        console.error('❌ Erro ao inicializar contador:', error)
       }
     }
     initializeMessageCount()

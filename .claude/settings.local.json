@@ -12,7 +12,12 @@
       "Bash(do echo \"=== $branch ===\")",
       "Bash(done)",
       "Bash(git checkout:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(if [ ! -d \"node_modules\" ])",
+      "Bash(then echo \"need install\")",
+      "Bash(else echo \"already installed\")",
+      "Bash(fi)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []
