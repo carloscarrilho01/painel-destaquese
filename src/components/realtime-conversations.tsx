@@ -301,16 +301,8 @@ export function RealtimeConversations({
 
   return (
     <div className="flex h-full relative">
-      {/* Indicador de nova mensagem */}
-      {isLive && (
-        <div className="absolute top-4 right-4 z-50 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg animate-bounce">
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-          Mensagem nova recebida!
-        </div>
-      )}
-
-      {/* Controles de som de notificação */}
-      <div className="absolute top-4 left-4 z-50 flex gap-2">
+      {/* Controles de som de notificação - canto superior direito */}
+      <div className="absolute top-4 right-4 z-50 flex gap-2">
         {/* Toggle de som */}
         <button
           onClick={toggleSound}
@@ -347,6 +339,14 @@ export function RealtimeConversations({
           🔔 Testar Som
         </button>
       </div>
+
+      {/* Indicador de nova mensagem - abaixo dos controles */}
+      {isLive && (
+        <div className="absolute top-16 right-4 z-50 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg animate-bounce">
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+          Mensagem nova recebida!
+        </div>
+      )}
 
       <ConversationList
         conversations={conversations}
