@@ -185,6 +185,23 @@ export function RealtimeConversations({
 
         if (chatsResult.data && leadsResult.data) {
           const processed = processConversations(chatsResult.data, leadsResult.data)
+
+          // Verificar se há novas mensagens para tocar som
+          const currentTotalMessages = chatsResult.data.length
+          const previousCount = previousMessageCountRef.current
+
+          console.log('📨 Verificando mensagens:', {
+            anterior: previousCount,
+            atual: currentTotalMessages,
+            diferenca: currentTotalMessages - previousCount
+          })
+
+          if (previousCount > 0 && currentTotalMessages > previousCount) {
+            console.log('🔔 Nova mensagem detectada! Tocando som...')
+            playSound()
+          }
+
+          previousMessageCountRef.current = currentTotalMessages
           setConversations(processed)
         }
       } catch (error) {
