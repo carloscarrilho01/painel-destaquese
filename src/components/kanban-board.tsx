@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Phone, Calendar, MessageSquare, Lock, Unlock, GripVertical, Edit2, Trash2, Check, X } from 'lucide-react'
+import { Phone, Calendar, MessageSquare, Lock, Unlock, GripVertical, Edit2, Trash2, Check, X, Link as LinkIcon, Settings } from 'lucide-react'
 import type { Lead } from '@/lib/types'
 
 type Stage = 'novo' | 'contato' | 'interessado' | 'negociacao' | 'fechado' | 'perdido'
@@ -16,6 +16,14 @@ const DEFAULT_STAGES: { id: Stage; label: string; color: string; bgColor: string
 ]
 
 const STORAGE_KEY = 'kanban_column_names'
+const WEBHOOKS_STORAGE_KEY = 'kanban_webhooks'
+
+type WebhookConfig = {
+  enabled: boolean
+  url: string
+}
+
+type WebhooksConfig = Record<Stage, WebhookConfig>
 
 interface KanbanBoardProps {
   leads: Lead[]
@@ -31,6 +39,10 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
   const [stages, setStages] = useState(DEFAULT_STAGES)
   const [editingStage, setEditingStage] = useState<Stage | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [webhooks, setWebhooks] = useState<WebhooksConfig>({} as WebhooksConfig)
+  const [configuringWebhook, setConfiguringWebhook] = useState<Stage | null>(null)
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [webhookEnabled, setWebhookEnabled] = useState(false)
 
   // Carregar nomes customizados do localStorage
   useEffect(() => {
@@ -45,6 +57,29 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
       } catch (e) {
         // Ignorar erro de parse
       }
+    }
+
+    // Carregar webhooks do localStorage
+    const savedWebhooks = localStorage.getItem(WEBHOOKS_STORAGE_KEY)
+    if (savedWebhooks) {
+      try {
+        const parsedWebhooks = JSON.parse(savedWebhooks) as WebhooksConfig
+        setWebhooks(parsedWebhooks)
+      } catch (e) {
+        // Inicializar com config vazia
+        const defaultWebhooks = DEFAULT_STAGES.reduce((acc, stage) => {
+          acc[stage.id] = { enabled: false, url: '' }
+          return acc
+        }, {} as WebhooksConfig)
+        setWebhooks(defaultWebhooks)
+      }
+    } else {
+      // Inicializar com config vazia
+      const defaultWebhooks = DEFAULT_STAGES.reduce((acc, stage) => {
+        acc[stage.id] = { enabled: false, url: '' }
+        return acc
+      }, {} as WebhooksConfig)
+      setWebhooks(defaultWebhooks)
     }
   }, [])
 
@@ -89,6 +124,70 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
     }
   }
 
+  // Funções de webhook
+  const openWebhookConfig = (stageId: Stage) => {
+    setConfiguringWebhook(stageId)
+    const config = webhooks[stageId] || { enabled: false, url: '' }
+    setWebhookUrl(config.url)
+    setWebhookEnabled(config.enabled)
+  }
+
+  const cancelWebhookConfig = () => {
+    setConfiguringWebhook(null)
+    setWebhookUrl('')
+    setWebhookEnabled(false)
+  }
+
+  const saveWebhookConfig = (stageId: Stage) => {
+    const updatedWebhooks = {
+      ...webhooks,
+      [stageId]: {
+        enabled: webhookEnabled,
+        url: webhookUrl.trim()
+      }
+    }
+    setWebhooks(updatedWebhooks)
+    localStorage.setItem(WEBHOOKS_STORAGE_KEY, JSON.stringify(updatedWebhooks))
+    cancelWebhookConfig()
+  }
+
+  const sendWebhook = async (lead: Lead, fromStage: Stage | null, toStage: Stage) => {
+    const config = webhooks[toStage]
+    if (!config || !config.enabled || !config.url) return
+
+    const payload = {
+      event: 'lead_moved',
+      timestamp: new Date().toISOString(),
+      lead: {
+        id: lead.id,
+        nome: lead.nome,
+        telefone: lead.telefone,
+        interesse: lead.interesse,
+        interessado: lead.interessado,
+        trava: lead.trava,
+        followup: lead.followup,
+        created_at: lead.created_at
+      },
+      movement: {
+        from_stage: fromStage,
+        to_stage: toStage,
+        stage_label: stages.find(s => s.id === toStage)?.label
+      }
+    }
+
+    try {
+      await fetch(config.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      })
+    } catch (error) {
+      // Ignorar erros de webhook silenciosamente
+    }
+  }
+
   // Agrupar leads por stage
   const leadsByStage = stages.reduce((acc, stage) => {
     acc[stage.id] = leads.filter(lead => (lead as any).stage === stage.id || (!((lead as any).stage) && stage.id === 'novo'))
@@ -106,7 +205,16 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
   const handleDrop = async (stage: Stage) => {
     if (!draggingLead) return
 
+    const lead = leads.find(l => l.id === draggingLead)
+    const fromStage = (lead as any)?.stage as Stage | null
+
     await onStageChange(draggingLead, stage)
+
+    // Enviar webhook após mover o card
+    if (lead) {
+      await sendWebhook(lead, fromStage, stage)
+    }
+
     setDraggingLead(null)
   }
 
@@ -173,6 +281,45 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
                       <X size={16} />
                     </button>
                   </div>
+                ) : configuringWebhook === stage.id ? (
+                  <div className="flex-1 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="url"
+                        value={webhookUrl}
+                        onChange={(e) => setWebhookUrl(e.target.value)}
+                        placeholder="https://example.com/webhook"
+                        className="flex-1 px-2 py-1 text-xs bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={webhookEnabled}
+                          onChange={(e) => setWebhookEnabled(e.target.checked)}
+                          className="w-4 h-4"
+                        />
+                        <span>Ativar webhook</span>
+                      </label>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => saveWebhookConfig(stage.id)}
+                          className="p-1 hover:bg-green-500/20 text-green-500 rounded transition-colors"
+                          title="Salvar"
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          onClick={cancelWebhookConfig}
+                          className="p-1 hover:bg-red-500/20 text-red-500 rounded transition-colors"
+                          title="Cancelar"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <>
                     <h3
@@ -183,9 +330,22 @@ export function KanbanBoard({ leads, onStageChange, onLeadClick, onEdit, onDelet
                       {stage.label}
                       <Edit2 size={14} className="opacity-0 group-hover:opacity-50 transition-opacity" />
                     </h3>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${stage.bgColor} ${stage.color}`}>
-                      {stageLeads.length}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openWebhookConfig(stage.id)}
+                        className={`p-1.5 rounded transition-colors ${
+                          webhooks[stage.id]?.enabled
+                            ? 'bg-green-500/20 text-green-500 hover:bg-green-500/30'
+                            : 'hover:bg-[var(--muted)]/20 text-[var(--muted)] hover:text-[var(--foreground)]'
+                        }`}
+                        title="Configurar webhook"
+                      >
+                        <LinkIcon size={14} />
+                      </button>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${stage.bgColor} ${stage.color}`}>
+                        {stageLeads.length}
+                      </span>
+                    </div>
                   </>
                 )}
               </div>
