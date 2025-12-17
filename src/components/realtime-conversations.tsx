@@ -84,6 +84,12 @@ export function RealtimeConversations({
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error' | 'polling'>('connecting')
   const { playSound, isEnabled: isSoundEnabled, toggleSound, isPlaying } = useNotificationSound()
   const previousMessageCountRef = useRef<number>(0)
+  const playSoundRef = useRef(playSound)
+
+  // Manter referência atualizada do playSound
+  useEffect(() => {
+    playSoundRef.current = playSound
+  }, [playSound])
 
   // Função para atualizar dados
   const handleUpdateConversations = async () => {
@@ -108,7 +114,7 @@ export function RealtimeConversations({
 
         if (previousCount > 0 && currentTotalMessages > previousCount) {
           console.log('🔔 Nova mensagem detectada! Tocando som...')
-          playSound()
+          playSoundRef.current()
         }
 
         previousMessageCountRef.current = currentTotalMessages
@@ -198,7 +204,7 @@ export function RealtimeConversations({
 
           if (previousCount > 0 && currentTotalMessages > previousCount) {
             console.log('🔔 Nova mensagem detectada! Tocando som...')
-            playSound()
+            playSoundRef.current()
           }
 
           previousMessageCountRef.current = currentTotalMessages
@@ -281,6 +287,7 @@ export function RealtimeConversations({
       }
       clearTimeout(pollingTimeout)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Atualizar session selecionada se mudar pela URL
