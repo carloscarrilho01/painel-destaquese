@@ -82,7 +82,7 @@ export function RealtimeConversations({
   const [selectedSession, setSelectedSession] = useState(initialSession || initialConversations[0]?.session_id)
   const [isLive, setIsLive] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error' | 'polling'>('connecting')
-  const { playSound, isEnabled: isSoundEnabled, toggleSound } = useNotificationSound()
+  const { playSound, isEnabled: isSoundEnabled, toggleSound, isPlaying } = useNotificationSound()
   const previousMessageCountRef = useRef<number>(0)
 
   // Função para atualizar dados
@@ -285,30 +285,44 @@ export function RealtimeConversations({
         </div>
       )}
 
-      {/* Toggle de som de notificação */}
-      <button
-        onClick={toggleSound}
-        className="absolute top-4 left-4 z-50 bg-[var(--card)] border border-[var(--border)] px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 shadow-lg hover:bg-[var(--muted)]/10 transition-colors"
-        title={isSoundEnabled ? 'Desativar som de notificação' : 'Ativar som de notificação'}
-      >
-        {isSoundEnabled ? (
-          <>
-            <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 3.5a.75.75 0 01.77.75V5h4.48a.75.75 0 110 1.5H10.77v8.75a.75.75 0 01-1.5 0V6.5H4.75a.75.75 0 110-1.5h4.52V4.25a.75.75 0 01.73-.75z"/>
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-1.5a6.5 6.5 0 100-13 6.5 6.5 0 000 13z" clipRule="evenodd"/>
-            </svg>
-            <span className="text-green-500">Som ativado</span>
-          </>
-        ) : (
-          <>
-            <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M3.28 2.22a.75.75 0 00-1.06 1.06l14.5 14.5a.75.75 0 101.06-1.06l-14.5-14.5z" clipRule="evenodd"/>
-              <path d="M10 3.5a.75.75 0 01.77.75V5h4.48a.75.75 0 110 1.5H10.77v8.75a.75.75 0 01-1.5 0V6.5H4.75a.75.75 0 110-1.5h4.52V4.25a.75.75 0 01.73-.75z"/>
-            </svg>
-            <span className="text-red-500">Som desativado</span>
-          </>
-        )}
-      </button>
+      {/* Controles de som de notificação */}
+      <div className="absolute top-4 left-4 z-50 flex gap-2">
+        {/* Toggle de som */}
+        <button
+          onClick={toggleSound}
+          className={`bg-[var(--card)] border px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 shadow-lg hover:bg-[var(--muted)]/10 transition-all ${
+            isPlaying ? 'animate-pulse border-green-500' : 'border-[var(--border)]'
+          }`}
+          title={isSoundEnabled ? 'Desativar som de notificação' : 'Ativar som de notificação'}
+        >
+          {isSoundEnabled ? (
+            <>
+              <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 3.5a.75.75 0 01.77.75V5h4.48a.75.75 0 110 1.5H10.77v8.75a.75.75 0 01-1.5 0V6.5H4.75a.75.75 0 110-1.5h4.52V4.25a.75.75 0 01.73-.75z"/>
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-1.5a6.5 6.5 0 100-13 6.5 6.5 0 000 13z" clipRule="evenodd"/>
+              </svg>
+              <span className="text-green-500">Som {isPlaying ? '(tocando...)' : 'ativado'}</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3.28 2.22a.75.75 0 00-1.06 1.06l14.5 14.5a.75.75 0 101.06-1.06l-14.5-14.5z" clipRule="evenodd"/>
+                <path d="M10 3.5a.75.75 0 01.77.75V5h4.48a.75.75 0 110 1.5H10.77v8.75a.75.75 0 01-1.5 0V6.5H4.75a.75.75 0 110-1.5h4.52V4.25a.75.75 0 01.73-.75z"/>
+              </svg>
+              <span className="text-red-500">Som desativado</span>
+            </>
+          )}
+        </button>
+
+        {/* Botão de teste */}
+        <button
+          onClick={() => playSound()}
+          className="bg-[var(--primary)] text-white px-3 py-2 rounded-lg text-xs font-medium shadow-lg hover:bg-[var(--primary-hover)] transition-colors"
+          title="Testar som de notificação"
+        >
+          🔔 Testar Som
+        </button>
+      </div>
 
       <ConversationList
         conversations={conversations}
