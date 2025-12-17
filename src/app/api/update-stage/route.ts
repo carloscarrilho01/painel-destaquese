@@ -14,18 +14,9 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!stage) {
+    if (!stage || typeof stage !== 'string') {
       return NextResponse.json(
-        { error: 'Stage é obrigatório' },
-        { status: 400 }
-      )
-    }
-
-    // Validar stages permitidos
-    const validStages = ['novo', 'contato', 'interessado', 'negociacao', 'fechado', 'perdido']
-    if (!validStages.includes(stage)) {
-      return NextResponse.json(
-        { error: `Stage inválido. Use um dos seguintes: ${validStages.join(', ')}` },
+        { error: 'Stage é obrigatório e deve ser uma string' },
         { status: 400 }
       )
     }
@@ -90,6 +81,6 @@ export async function GET() {
     endpoint: '/api/update-stage',
     methods: ['POST'],
     description: 'Atualiza o estágio (stage) de um lead no CRM Kanban',
-    validStages: ['novo', 'contato', 'interessado', 'negociacao', 'fechado', 'perdido']
+    note: 'Aceita qualquer string como stage (colunas customizáveis)'
   })
 }
