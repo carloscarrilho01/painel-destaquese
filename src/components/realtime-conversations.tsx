@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ConversationList } from '@/components/conversation-list'
 import { ChatView } from '@/components/chat-view'
+import { useNotificationSound } from '@/hooks/useNotificationSound'
 import type { ChatMessage, Conversation, Lead } from '@/lib/types'
 
 function isToolMessage(content: string): boolean {
@@ -81,6 +82,14 @@ export function RealtimeConversations({
   const [selectedSession, setSelectedSession] = useState(initialSession || initialConversations[0]?.session_id)
   const [isLive, setIsLive] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error' | 'polling'>('connecting')
+  const { playSound, isEnabled: isSoundEnabled, toggleSound, isPlaying } = useNotificationSound()
+  const previousMessageCountRef = useRef<number>(0)
+  const playSoundRef = useRef(playSound)
+
+  // Manter referência atualizada do playSound
+  useEffect(() => {
+    playSoundRef.current = playSound
+  }, [playSound])
 
   // Função para atualizar dados
   const handleUpdateConversations = async () => {
@@ -92,6 +101,23 @@ export function RealtimeConversations({
 
       if (chatsResult.data && leadsResult.data) {
         const processed = processConversations(chatsResult.data, leadsResult.data)
+
+        // Verificar se há novas mensagens para tocar som
+        const currentTotalMessages = chatsResult.data.length
+        const previousCount = previousMessageCountRef.current
+
+        console.log('📨 Verificando mensagens:', {
+          anterior: previousCount,
+          atual: currentTotalMessages,
+          diferenca: currentTotalMessages - previousCount
+        })
+
+        if (previousCount > 0 && currentTotalMessages > previousCount) {
+          console.log('🔔 Nova mensagem detectada! Tocando som...')
+          playSoundRef.current()
+        }
+
+        previousMessageCountRef.current = currentTotalMessages
         setConversations(processed)
       }
     } catch (error) {
@@ -128,6 +154,24 @@ export function RealtimeConversations({
     setSelectedSession(sessionId)
   }
 
+  // Inicializar contador de mensagens
+  useEffect(() => {
+    const initializeMessageCount = async () => {
+      try {
+        const { data, count } = await supabase
+          .from('chats')
+          .select('*', { count: 'exact', head: false })
+
+        const messageCount = data?.length || count || 0
+        previousMessageCountRef.current = messageCount
+        console.log('📊 Contador inicializado:', messageCount)
+      } catch (error) {
+        console.error('❌ Erro ao inicializar contador:', error)
+      }
+    }
+    initializeMessageCount()
+  }, [])
+
   // Atualiza a conversa selecionada quando o query param mudar
   useEffect(() => {
     const sessionFromUrl = searchParams.get('session')
@@ -147,6 +191,23 @@ export function RealtimeConversations({
 
         if (chatsResult.data && leadsResult.data) {
           const processed = processConversations(chatsResult.data, leadsResult.data)
+
+          // Verificar se há novas mensagens para tocar som
+          const currentTotalMessages = chatsResult.data.length
+          const previousCount = previousMessageCountRef.current
+
+          console.log('📨 Verificando mensagens:', {
+            anterior: previousCount,
+            atual: currentTotalMessages,
+            diferenca: currentTotalMessages - previousCount
+          })
+
+          if (previousCount > 0 && currentTotalMessages > previousCount) {
+            console.log('🔔 Nova mensagem detectada! Tocando som...')
+            playSoundRef.current()
+          }
+
+          previousMessageCountRef.current = currentTotalMessages
           setConversations(processed)
         }
       } catch (error) {
@@ -226,6 +287,7 @@ export function RealtimeConversations({
       }
       clearTimeout(pollingTimeout)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Atualizar session selecionada se mudar pela URL
@@ -239,9 +301,48 @@ export function RealtimeConversations({
 
   return (
     <div className="flex h-full relative">
-      {/* Indicador de nova mensagem */}
+      {/* Controles de som de notificação - canto superior direito */}
+      <div className="absolute top-4 right-4 z-50 flex gap-2">
+        {/* Toggle de som */}
+        <button
+          onClick={toggleSound}
+          className={`bg-[var(--card)] border px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 shadow-lg hover:bg-[var(--muted)]/10 transition-all ${
+            isPlaying ? 'animate-pulse border-green-500' : 'border-[var(--border)]'
+          }`}
+          title={isSoundEnabled ? 'Desativar som de notificação' : 'Ativar som de notificação'}
+        >
+          {isSoundEnabled ? (
+            <>
+              <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 3.5a.75.75 0 01.77.75V5h4.48a.75.75 0 110 1.5H10.77v8.75a.75.75 0 01-1.5 0V6.5H4.75a.75.75 0 110-1.5h4.52V4.25a.75.75 0 01.73-.75z"/>
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-1.5a6.5 6.5 0 100-13 6.5 6.5 0 000 13z" clipRule="evenodd"/>
+              </svg>
+              <span className="text-green-500">Som {isPlaying ? '(tocando...)' : 'ativado'}</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3.28 2.22a.75.75 0 00-1.06 1.06l14.5 14.5a.75.75 0 101.06-1.06l-14.5-14.5z" clipRule="evenodd"/>
+                <path d="M10 3.5a.75.75 0 01.77.75V5h4.48a.75.75 0 110 1.5H10.77v8.75a.75.75 0 01-1.5 0V6.5H4.75a.75.75 0 110-1.5h4.52V4.25a.75.75 0 01.73-.75z"/>
+              </svg>
+              <span className="text-red-500">Som desativado</span>
+            </>
+          )}
+        </button>
+
+        {/* Botão de teste */}
+        <button
+          onClick={() => playSound()}
+          className="bg-[var(--primary)] text-white px-3 py-2 rounded-lg text-xs font-medium shadow-lg hover:bg-[var(--primary-hover)] transition-colors"
+          title="Testar som de notificação"
+        >
+          🔔 Testar Som
+        </button>
+      </div>
+
+      {/* Indicador de nova mensagem - abaixo dos controles */}
       {isLive && (
-        <div className="absolute top-4 right-4 z-50 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg animate-bounce">
+        <div className="absolute top-16 right-4 z-50 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg animate-bounce">
           <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
           Mensagem nova recebida!
         </div>
