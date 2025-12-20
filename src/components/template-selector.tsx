@@ -11,7 +11,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { FileText, Search, Plus, Trash2, X } from 'lucide-react'
+import { FileText, Search, Plus, Trash2, X, Loader2 } from 'lucide-react'
 
 interface TemplateSelectorProps {
   onSelectTemplate: (content: string) => void
@@ -30,6 +30,7 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
     content: '',
     category: '',
   })
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -43,8 +44,14 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
 
   const loadTemplates = async () => {
     setIsLoading(true)
+    setError(null)
     try {
       const response = await fetch('/api/templates')
+
+      if (!response.ok) {
+        throw new Error('Erro ao carregar templates')
+      }
+
       const data = await response.json()
 
       if (data.templates) {
@@ -52,6 +59,7 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
       }
     } catch (error) {
       console.error('Erro ao carregar templates:', error)
+      setError('Erro ao carregar templates. Verifique a conexão.')
     } finally {
       setIsLoading(false)
     }
@@ -108,11 +116,13 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
 
   const handleCreateTemplate = async () => {
     if (!newTemplate.title.trim() || !newTemplate.content.trim()) {
-      alert('Título e conteúdo são obrigatórios')
+      setError('Título e conteúdo são obrigatórios')
       return
     }
 
     setIsLoading(true)
+    setError(null)
+
     try {
       const response = await fetch('/api/templates', {
         method: 'POST',
@@ -120,17 +130,18 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
         body: JSON.stringify(newTemplate),
       })
 
-      if (response.ok) {
-        await loadTemplates()
-        setNewTemplate({ title: '', content: '', category: '' })
-        setShowCreateForm(false)
-      } else {
-        const data = await response.json()
-        alert(data.error || 'Erro ao criar template')
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao criar template')
       }
+
+      await loadTemplates()
+      setNewTemplate({ title: '', content: '', category: '' })
+      setShowCreateForm(false)
     } catch (error) {
       console.error('Erro ao criar template:', error)
-      alert('Erro ao criar template')
+      setError(error instanceof Error ? error.message : 'Erro ao criar template')
     } finally {
       setIsLoading(false)
     }
@@ -144,20 +155,22 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
     }
 
     setIsLoading(true)
+    setError(null)
+
     try {
       const response = await fetch(`/api/templates/${id}`, {
         method: 'DELETE',
       })
 
-      if (response.ok) {
-        await loadTemplates()
-      } else {
+      if (!response.ok) {
         const data = await response.json()
-        alert(data.error || 'Erro ao excluir template')
+        throw new Error(data.error || 'Erro ao excluir template')
       }
+
+      await loadTemplates()
     } catch (error) {
       console.error('Erro ao excluir template:', error)
-      alert('Erro ao excluir template')
+      setError(error instanceof Error ? error.message : 'Erro ao excluir template')
     } finally {
       setIsLoading(false)
     }
@@ -175,96 +188,120 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
+        <button
           type="button"
+          className="p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Mensagens Rápidas"
         >
-          <FileText className="h-4 w-4" />
-        </Button>
+          <FileText className="h-[18px] w-[18px]" />
+        </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-96 p-0"
+        className="w-[420px] p-0 shadow-xl"
         align="end"
         side="top"
-        sideOffset={10}
+        sideOffset={8}
       >
-        <div className="flex flex-col max-h-[500px]">
+        <div className="flex flex-col" style={{ maxHeight: '70vh' }}>
           {/* Header com busca e botão criar */}
-          <div className="p-3 border-b bg-gray-50">
+          <div className="p-4 border-b bg-white">
             <div className="flex gap-2 mb-2">
               <div className="relative flex-1">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder="Buscar templates..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 h-9"
+                  className="pl-9 h-9 bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"
                 />
               </div>
               <Button
                 size="sm"
-                onClick={() => setShowCreateForm(!showCreateForm)}
+                onClick={() => {
+                  setShowCreateForm(!showCreateForm)
+                  setError(null)
+                }}
                 variant={showCreateForm ? "default" : "outline"}
-                className="h-9"
+                className="h-9 px-3"
               >
-                {showCreateForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {showCreateForm ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
               </Button>
             </div>
 
+            {/* Mensagem de erro */}
+            {error && (
+              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
             {/* Formulário de criar template */}
             {showCreateForm && (
-              <div className="space-y-2 pt-2 border-t">
+              <div className="space-y-2 pt-3 mt-3 border-t">
                 <Input
                   placeholder="Título do template"
                   value={newTemplate.title}
                   onChange={(e) => setNewTemplate({ ...newTemplate, title: e.target.value })}
-                  className="h-8 text-sm"
+                  className="h-9 text-sm bg-white border-gray-300 text-gray-900"
                 />
                 <Input
                   placeholder="Categoria (opcional)"
                   value={newTemplate.category}
                   onChange={(e) => setNewTemplate({ ...newTemplate, category: e.target.value })}
-                  className="h-8 text-sm"
+                  className="h-9 text-sm bg-white border-gray-300 text-gray-900"
                 />
                 <Textarea
                   placeholder="Conteúdo (use {{variavel}} para campos dinâmicos)"
                   value={newTemplate.content}
                   onChange={(e) => setNewTemplate({ ...newTemplate, content: e.target.value })}
                   rows={3}
-                  className="text-sm resize-none"
+                  className="text-sm resize-none bg-white border-gray-300 text-gray-900"
                 />
                 <Button
                   size="sm"
                   onClick={handleCreateTemplate}
                   disabled={isLoading || !newTemplate.title.trim() || !newTemplate.content.trim()}
-                  className="w-full h-8"
+                  className="w-full h-9"
                 >
-                  {isLoading ? 'Criando...' : 'Criar Template'}
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    'Criar Template'
+                  )}
                 </Button>
               </div>
             )}
           </div>
 
           {/* Lista de templates */}
-          <ScrollArea className="flex-1 max-h-[350px]">
+          <ScrollArea className="flex-1" style={{ maxHeight: '50vh' }}>
             {isLoading && !showCreateForm ? (
-              <div className="p-4 text-center text-sm text-gray-500">
-                Carregando templates...
+              <div className="p-8 text-center">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto text-blue-600" />
+                <p className="text-sm text-gray-600 mt-2">Carregando templates...</p>
               </div>
             ) : filteredTemplates.length === 0 ? (
-              <div className="p-4 text-center text-sm text-gray-500">
-                {searchQuery ? 'Nenhum template encontrado' : 'Nenhum template disponível'}
+              <div className="p-8 text-center">
+                <FileText className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+                <p className="text-sm text-gray-600 font-medium">
+                  {searchQuery ? 'Nenhum template encontrado' : 'Nenhum template disponível'}
+                </p>
                 {!searchQuery && (
-                  <p className="text-xs mt-1">Clique em + para criar seu primeiro template</p>
+                  <p className="text-xs text-gray-500 mt-1">Clique em + para criar seu primeiro template</p>
                 )}
               </div>
             ) : (
               <div className="p-2">
                 {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
-                  <div key={category} className="mb-3">
-                    <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">
+                  <div key={category} className="mb-4">
+                    <div className="px-2 py-1.5 text-xs font-bold text-gray-700 uppercase tracking-wide">
                       {category}
                     </div>
                     <div className="space-y-1">
@@ -275,18 +312,18 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
                         >
                           <button
                             onClick={() => handleSelectTemplate(template)}
-                            className="w-full text-left p-2 pr-10 rounded-md hover:bg-gray-100 transition-colors"
+                            className="w-full text-left p-3 pr-12 rounded-lg hover:bg-blue-50 transition-colors border border-transparent hover:border-blue-200"
                           >
-                            <div className="font-medium text-sm">{template.title}</div>
-                            <div className="text-xs text-gray-500 line-clamp-2 mt-1">
+                            <div className="font-semibold text-sm text-gray-900">{template.title}</div>
+                            <div className="text-sm text-gray-600 line-clamp-2 mt-1">
                               {template.content}
                             </div>
                             {template.variables.length > 0 && (
-                              <div className="flex gap-1 mt-1.5 flex-wrap">
+                              <div className="flex gap-1 mt-2 flex-wrap">
                                 {template.variables.map((variable) => (
                                   <span
                                     key={variable}
-                                    className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded"
+                                    className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full font-medium"
                                   >
                                     {variable}
                                   </span>
@@ -296,10 +333,11 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
                           </button>
                           <button
                             onClick={(e) => handleDeleteTemplate(template.id, e)}
-                            className="absolute right-2 top-2 p-1.5 rounded hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute right-3 top-3 p-1.5 rounded-md hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
                             title="Excluir template"
+                            disabled={isLoading}
                           >
-                            <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                            <Trash2 className="h-4 w-4 text-red-600" />
                           </button>
                         </div>
                       ))}
@@ -311,10 +349,10 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
           </ScrollArea>
 
           {/* Footer */}
-          {!showCreateForm && (
-            <div className="p-2 border-t bg-gray-50">
-              <p className="text-xs text-gray-500 text-center">
-                Clique em um template para usá-lo • Passe o mouse para excluir
+          {!showCreateForm && filteredTemplates.length > 0 && (
+            <div className="p-3 border-t bg-gray-50">
+              <p className="text-xs text-gray-600 text-center">
+                Clique para usar • Passe o mouse e clique em 🗑️ para excluir
               </p>
             </div>
           )}
