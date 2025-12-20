@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { MessageSquare, Users, LayoutDashboard, Settings, Kanban, LogOut } from 'lucide-react'
+import { MessageSquare, Users, LayoutDashboard, Settings, Kanban, LogOut, FileText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useState } from 'react'
 
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/conversas', label: 'Conversas', icon: MessageSquare },
   { href: '/crm', label: 'CRM Kanban', icon: Kanban },
   { href: '/leads', label: 'Leads', icon: Users },
+  { href: '/templates', label: 'Mensagens Rápidas', icon: FileText },
   { href: '/configuracoes', label: 'Configuracoes', icon: Settings },
 ]
 

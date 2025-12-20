@@ -37,3 +37,13 @@ export type Conversation = {
   lastType: string
   lead?: Lead
 }
+
+export type MessageTemplate = {
+  id: string
+  title: string
+  content: string
+  category: string | null
+  variables: string[]
+  created_at: string
+  updated_at: string
+}
