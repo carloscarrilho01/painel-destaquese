@@ -9,8 +9,9 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { FileText, Search } from 'lucide-react'
+import { FileText, Search, Plus, Trash2, X } from 'lucide-react'
 
 interface TemplateSelectorProps {
   onSelectTemplate: (content: string) => void
@@ -23,6 +24,12 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
   const [searchQuery, setSearchQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [newTemplate, setNewTemplate] = useState({
+    title: '',
+    content: '',
+    category: '',
+  })
 
   useEffect(() => {
     if (isOpen) {
@@ -99,6 +106,63 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
     setSearchQuery('')
   }
 
+  const handleCreateTemplate = async () => {
+    if (!newTemplate.title.trim() || !newTemplate.content.trim()) {
+      alert('Título e conteúdo são obrigatórios')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTemplate),
+      })
+
+      if (response.ok) {
+        await loadTemplates()
+        setNewTemplate({ title: '', content: '', category: '' })
+        setShowCreateForm(false)
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Erro ao criar template')
+      }
+    } catch (error) {
+      console.error('Erro ao criar template:', error)
+      alert('Erro ao criar template')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDeleteTemplate = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    if (!confirm('Deseja realmente excluir este template?')) {
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/templates/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        await loadTemplates()
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Erro ao excluir template')
+      }
+    } catch (error) {
+      console.error('Erro ao excluir template:', error)
+      alert('Erro ao excluir template')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const groupedTemplates = filteredTemplates.reduce((acc, template) => {
     const category = template.category || 'Sem Categoria'
     if (!acc[category]) {
@@ -120,60 +184,124 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
           <FileText className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-96 p-0" align="start">
-        <div className="flex flex-col h-[400px]">
-          <div className="p-3 border-b">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar templates..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
-              />
+      <PopoverContent
+        className="w-96 p-0"
+        align="end"
+        side="top"
+        sideOffset={10}
+      >
+        <div className="flex flex-col max-h-[500px]">
+          {/* Header com busca e botão criar */}
+          <div className="p-3 border-b bg-gray-50">
+            <div className="flex gap-2 mb-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Buscar templates..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-9"
+                />
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                variant={showCreateForm ? "default" : "outline"}
+                className="h-9"
+              >
+                {showCreateForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              </Button>
             </div>
+
+            {/* Formulário de criar template */}
+            {showCreateForm && (
+              <div className="space-y-2 pt-2 border-t">
+                <Input
+                  placeholder="Título do template"
+                  value={newTemplate.title}
+                  onChange={(e) => setNewTemplate({ ...newTemplate, title: e.target.value })}
+                  className="h-8 text-sm"
+                />
+                <Input
+                  placeholder="Categoria (opcional)"
+                  value={newTemplate.category}
+                  onChange={(e) => setNewTemplate({ ...newTemplate, category: e.target.value })}
+                  className="h-8 text-sm"
+                />
+                <Textarea
+                  placeholder="Conteúdo (use {{variavel}} para campos dinâmicos)"
+                  value={newTemplate.content}
+                  onChange={(e) => setNewTemplate({ ...newTemplate, content: e.target.value })}
+                  rows={3}
+                  className="text-sm resize-none"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleCreateTemplate}
+                  disabled={isLoading || !newTemplate.title.trim() || !newTemplate.content.trim()}
+                  className="w-full h-8"
+                >
+                  {isLoading ? 'Criando...' : 'Criar Template'}
+                </Button>
+              </div>
+            )}
           </div>
 
-          <ScrollArea className="flex-1">
-            {isLoading ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">
+          {/* Lista de templates */}
+          <ScrollArea className="flex-1 max-h-[350px]">
+            {isLoading && !showCreateForm ? (
+              <div className="p-4 text-center text-sm text-gray-500">
                 Carregando templates...
               </div>
             ) : filteredTemplates.length === 0 ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">
+              <div className="p-4 text-center text-sm text-gray-500">
                 {searchQuery ? 'Nenhum template encontrado' : 'Nenhum template disponível'}
+                {!searchQuery && (
+                  <p className="text-xs mt-1">Clique em + para criar seu primeiro template</p>
+                )}
               </div>
             ) : (
               <div className="p-2">
                 {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
-                  <div key={category} className="mb-4">
-                    <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase">
+                  <div key={category} className="mb-3">
+                    <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">
                       {category}
                     </div>
                     <div className="space-y-1">
                       {categoryTemplates.map((template) => (
-                        <button
+                        <div
                           key={template.id}
-                          onClick={() => handleSelectTemplate(template)}
-                          className="w-full text-left p-2 rounded-md hover:bg-accent transition-colors"
+                          className="group relative"
                         >
-                          <div className="font-medium text-sm">{template.title}</div>
-                          <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                            {template.content}
-                          </div>
-                          {template.variables.length > 0 && (
-                            <div className="flex gap-1 mt-1.5 flex-wrap">
-                              {template.variables.map((variable) => (
-                                <span
-                                  key={variable}
-                                  className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded"
-                                >
-                                  {variable}
-                                </span>
-                              ))}
+                          <button
+                            onClick={() => handleSelectTemplate(template)}
+                            className="w-full text-left p-2 pr-10 rounded-md hover:bg-gray-100 transition-colors"
+                          >
+                            <div className="font-medium text-sm">{template.title}</div>
+                            <div className="text-xs text-gray-500 line-clamp-2 mt-1">
+                              {template.content}
                             </div>
-                          )}
-                        </button>
+                            {template.variables.length > 0 && (
+                              <div className="flex gap-1 mt-1.5 flex-wrap">
+                                {template.variables.map((variable) => (
+                                  <span
+                                    key={variable}
+                                    className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded"
+                                  >
+                                    {variable}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteTemplate(template.id, e)}
+                            className="absolute right-2 top-2 p-1.5 rounded hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Excluir template"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -182,11 +310,14 @@ export function TemplateSelector({ onSelectTemplate, leadData }: TemplateSelecto
             )}
           </ScrollArea>
 
-          <div className="p-2 border-t bg-muted/50">
-            <p className="text-xs text-muted-foreground text-center">
-              Clique em um template para usá-lo
-            </p>
-          </div>
+          {/* Footer */}
+          {!showCreateForm && (
+            <div className="p-2 border-t bg-gray-50">
+              <p className="text-xs text-gray-500 text-center">
+                Clique em um template para usá-lo • Passe o mouse para excluir
+              </p>
+            </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>
