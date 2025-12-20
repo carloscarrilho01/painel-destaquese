@@ -15,7 +15,7 @@ export async function GET() {
     if (error) {
       console.error('Erro ao buscar templates:', error)
       return NextResponse.json(
-        { error: 'Erro ao buscar templates' },
+        { error: `Erro ao buscar templates: ${error.message}` },
         { status: 500 }
       )
     }
@@ -24,7 +24,7 @@ export async function GET() {
   } catch (error) {
     console.error('Erro no servidor:', error)
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
+      { error: `Erro interno: ${error instanceof Error ? error.message : 'Desconhecido'}` },
       { status: 500 }
     )
   }
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     const body = await request.json()
 
-    const { title, content, category, variables } = body
+    const { title, content, category } = body
 
     if (!title || !content) {
       return NextResponse.json(
@@ -49,13 +49,15 @@ export async function POST(request: Request) {
       v.replace(/\{\{|\}\}/g, '')
     ) || []
 
+    console.log('Tentando inserir template:', { title, content, category, variables: extractedVariables })
+
     const { data: template, error } = await supabase
       .from('message_templates')
       .insert({
         title,
         content,
         category: category || null,
-        variables: variables || extractedVariables
+        variables: extractedVariables
       })
       .select()
       .single()
@@ -63,16 +65,18 @@ export async function POST(request: Request) {
     if (error) {
       console.error('Erro ao criar template:', error)
       return NextResponse.json(
-        { error: 'Erro ao criar template' },
+        { error: `Erro ao criar template: ${error.message}. Código: ${error.code}` },
         { status: 500 }
       )
     }
+
+    console.log('Template criado com sucesso:', template)
 
     return NextResponse.json({ template: template as MessageTemplate }, { status: 201 })
   } catch (error) {
     console.error('Erro no servidor:', error)
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
+      { error: `Erro interno: ${error instanceof Error ? error.message : 'Desconhecido'}` },
       { status: 500 }
     )
   }
