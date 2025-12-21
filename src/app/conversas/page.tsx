@@ -46,8 +46,15 @@ async function getConversations() {
   })
 
   const grouped = new Map<string, ChatMessage[]>()
+  const seenIds = new Set<number>()
 
   chats.forEach((chat: ChatMessage) => {
+    // Deduplicação por ID: ignorar se já foi processado
+    if (seenIds.has(chat.id)) {
+      return
+    }
+    seenIds.add(chat.id)
+
     const existing = grouped.get(chat.session_id) || []
     existing.push(chat)
     grouped.set(chat.session_id, existing)

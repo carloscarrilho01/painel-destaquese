@@ -37,8 +37,15 @@ function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conve
   })
 
   const grouped = new Map<string, ChatMessage[]>()
+  const seenIds = new Set<number>()
 
   chats.forEach((chat: ChatMessage) => {
+    // Deduplicação por ID: ignorar se já foi processado
+    if (seenIds.has(chat.id)) {
+      return
+    }
+    seenIds.add(chat.id)
+
     const existing = grouped.get(chat.session_id) || []
     existing.push(chat)
     grouped.set(chat.session_id, existing)
@@ -82,6 +89,26 @@ export function RealtimeConversations({
   const [isLive, setIsLive] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error' | 'polling'>('connecting')
 
+  // Função auxiliar para fazer merge inteligente das conversas
+  const mergeConversations = (newConversations: Conversation[]) => {
+    setConversations(prev => {
+      const merged = new Map<string, Conversation>()
+
+      // Adicionar conversas existentes
+      prev.forEach(conv => merged.set(conv.session_id, conv))
+
+      // Atualizar/adicionar novas conversas
+      newConversations.forEach(conv => {
+        const existing = merged.get(conv.session_id)
+        if (!existing || conv.messages.length > existing.messages.length) {
+          merged.set(conv.session_id, conv)
+        }
+      })
+
+      return Array.from(merged.values())
+    })
+  }
+
   // Função para atualizar dados
   const handleUpdateConversations = async () => {
     try {
@@ -92,7 +119,7 @@ export function RealtimeConversations({
 
       if (chatsResult.data && leadsResult.data) {
         const processed = processConversations(chatsResult.data, leadsResult.data)
-        setConversations(processed)
+        mergeConversations(processed)
       }
     } catch (error) {
       console.error('Erro ao buscar dados:', error)
@@ -137,24 +164,33 @@ export function RealtimeConversations({
   }, [searchParams, selectedSession])
 
   useEffect(() => {
-    // Função para buscar dados atualizados
-    const fetchData = async () => {
-      try {
-        const [chatsResult, leadsResult] = await Promise.all([
-          supabase.from('chats').select('*').order('id', { ascending: true }),
-          supabase.from('leads').select('*')
-        ])
+    let debounceTimer: NodeJS.Timeout | null = null
 
-        if (chatsResult.data && leadsResult.data) {
-          const processed = processConversations(chatsResult.data, leadsResult.data)
-          setConversations(processed)
-        }
-      } catch (error) {
-        console.error('Erro ao buscar dados:', error)
+    // Função para buscar dados atualizados com debounce
+    const fetchData = async () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
       }
+
+      debounceTimer = setTimeout(async () => {
+        try {
+          const [chatsResult, leadsResult] = await Promise.all([
+            supabase.from('chats').select('*').order('id', { ascending: true }),
+            supabase.from('leads').select('*')
+          ])
+
+          if (chatsResult.data && leadsResult.data) {
+            const processed = processConversations(chatsResult.data, leadsResult.data)
+            mergeConversations(processed)
+          }
+        } catch (error) {
+          console.error('Erro ao buscar dados:', error)
+        }
+      }, 300) // Debounce de 300ms
     }
 
     let pollingInterval: NodeJS.Timeout | null = null
+    let pollingTimeout: NodeJS.Timeout | null = null
     let hasStartedPolling = false
 
     // Iniciar polling imediatamente como fallback
@@ -163,21 +199,34 @@ export function RealtimeConversations({
       if (hasStartedPolling) return
       hasStartedPolling = true
 
-      console.log('🔄 [Polling] Iniciando polling a cada 3 segundos...')
+      console.log('🔄 [Polling] Iniciando polling a cada 5 segundos...')
       pollingInterval = setInterval(() => {
         console.log('🔄 [Polling] Verificando novas mensagens...')
         fetchData()
-      }, 3000)
+      }, 5000) // Aumentado para 5 segundos para reduzir chamadas
       setRealtimeStatus('polling')
     }
 
-    // Iniciar polling após 2 segundos se Realtime não conectar
-    const pollingTimeout = setTimeout(() => {
+    const stopPolling = () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval)
+        pollingInterval = null
+        hasStartedPolling = false
+        console.log('⏹️ [Polling] Polling cancelado')
+      }
+      if (pollingTimeout) {
+        clearTimeout(pollingTimeout)
+        pollingTimeout = null
+      }
+    }
+
+    // Iniciar polling após 3 segundos se Realtime não conectar (aumentado de 2s)
+    pollingTimeout = setTimeout(() => {
       if (realtimeStatus === 'connecting') {
         console.log('⏱️ [Polling] Realtime demorou, iniciando polling...')
         startPolling()
       }
-    }, 2000)
+    }, 3000)
 
     // Tentar subscrever via Realtime
     const channel = supabase
@@ -203,16 +252,11 @@ export function RealtimeConversations({
           setRealtimeStatus('connected')
           console.log('✅ [Realtime] Conectado com sucesso!')
 
-          // Cancelar polling se estava rodando
-          if (pollingInterval) {
-            clearInterval(pollingInterval)
-            pollingInterval = null
-            hasStartedPolling = false
-            console.log('⏹️ [Polling] Polling cancelado, Realtime ativo')
-          }
-          clearTimeout(pollingTimeout)
+          // Cancelar polling completamente quando Realtime conectar
+          stopPolling()
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           console.warn('⚠️ [Realtime] Erro na conexão:', status)
+          setRealtimeStatus('error')
           startPolling()
         }
       })
@@ -221,10 +265,10 @@ export function RealtimeConversations({
     return () => {
       console.log('🔌 [Realtime] Desconectando...')
       supabase.removeChannel(channel)
-      if (pollingInterval) {
-        clearInterval(pollingInterval)
+      stopPolling()
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
       }
-      clearTimeout(pollingTimeout)
     }
   }, [])
 
