@@ -262,12 +262,12 @@ export function ChatView({
         if (data.messages && data.messages.length > 0) {
           setOptimisticMessages(prev => [...prev, ...data.messages])
 
-          // Remover mensagens temporárias após 15 segundos (já terão vindo do banco)
+          // Remover mensagens temporárias após 30 segundos (já terão vindo do banco)
           setTimeout(() => {
             setOptimisticMessages(prev =>
               prev.filter(m => !m.isTemporary)
             )
-          }, 15000)
+          }, 30000)
         }
 
         setFeedback({ type: 'success', text: selectedFile ? 'Arquivo enviado com sucesso!' : 'Mensagem enviada com sucesso!' })
@@ -343,7 +343,7 @@ export function ChatView({
             setOptimisticMessages(prev =>
               prev.filter(m => !m.isTemporary)
             )
-          }, 15000)
+          }, 30000)
         }
 
         setFeedback({ type: 'success', text: 'Áudio enviado com sucesso!' })
@@ -384,22 +384,17 @@ export function ChatView({
       return !isToolMessage(content) && !isInternalProcessingMessage(content)
     })
 
-  // Combinar mensagens do banco com mensagens otimistas
-  // Deduplicar por conteúdo e timestamp para evitar duplicatas
-  const allMessages = [...filteredMessages, ...optimisticMessages]
-  const messagesToShow = allMessages.filter((msg, index, self) => {
-    // Se é mensagem temporária, sempre mostrar
-    if (msg.isTemporary) return true
+  // Combinar mensagens do banco com mensagens temporárias
+  // Mostrar mensagens temporárias apenas se ainda não vieram do banco
+  const dbMessageContents = new Set(
+    filteredMessages.map(m => `${m.message?.content}-${m.message?.type}`)
+  )
 
-    // Para mensagens do banco, verificar se não há duplicata temporária
-    const hasDuplicate = self.some((m, i) =>
-      i !== index &&
-      m.message?.content === msg.message?.content &&
-      Math.abs(new Date(m.timestamp || 0).getTime() - new Date(msg.timestamp || 0).getTime()) < 5000
-    )
+  const tempMessagesToShow = optimisticMessages.filter(m =>
+    !dbMessageContents.has(`${m.message?.content}-${m.message?.type}`)
+  )
 
-    return !hasDuplicate
-  })
+  const messagesToShow = [...filteredMessages, ...tempMessagesToShow]
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--background)]">
