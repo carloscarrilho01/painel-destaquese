@@ -144,6 +144,7 @@ export function ChatView({
   const [filePreview, setFilePreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [isRecordingMode, setIsRecordingMode] = useState(false)
+  const [optimisticMessages, setOptimisticMessages] = useState<any[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -252,6 +253,22 @@ export function ChatView({
       const data = await response.json()
 
       if (response.ok) {
+        // Adicionar mensagem otimista para exibição imediata
+        if (data.optimisticMessage) {
+          setOptimisticMessages(prev => [...prev, {
+            ...data.optimisticMessage,
+            id: `optimistic-${Date.now()}`,
+            isOptimistic: true
+          }])
+
+          // Remover mensagem otimista após 10 segundos (já terá vindo do banco)
+          setTimeout(() => {
+            setOptimisticMessages(prev =>
+              prev.filter(m => m.id !== `optimistic-${Date.now()}`)
+            )
+          }, 10000)
+        }
+
         setFeedback({ type: 'success', text: selectedFile ? 'Arquivo enviado com sucesso!' : 'Mensagem enviada com sucesso!' })
         setMessage('')
         handleRemoveFile()
@@ -349,11 +366,14 @@ export function ChatView({
 
   // Usar visibleMessages se disponível, senão filtrar na hora
   // Filtrar mensagens de ferramentas e mensagens internas (independente do tipo)
-  const messagesToShow = conversation.visibleMessages ||
+  const filteredMessages = conversation.visibleMessages ||
     conversation.messages.filter(m => {
       const content = m.message?.content
       return !isToolMessage(content) && !isInternalProcessingMessage(content)
     })
+
+  // Combinar mensagens do banco com mensagens otimistas
+  const messagesToShow = [...filteredMessages, ...optimisticMessages]
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--background)]">

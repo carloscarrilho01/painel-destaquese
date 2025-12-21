@@ -56,32 +56,25 @@ export async function POST(request: NextRequest) {
 
     const responseData = await webhookResponse.json().catch(() => ({}))
 
-    // Salvar mensagem no banco de dados para aparecer na lista
-    try {
-      const messageData: any = {
-        session_id: phone,
-        message: {
-          type: 'ai', // Mensagem do agente/atendente, não do cliente
-          content: message
-        }
-      }
+    // Não salvar a mensagem do atendente no banco - deixar o N8N processar e salvar
+    // Isso evita mensagens duplicadas e permite que o N8N decida o que salvar
 
-      // Se houver media_url, adicionar ao objeto
-      if (mediaUrl) {
-        messageData.media_url = mediaUrl
-      }
-
-      await supabase.from('chats').insert(messageData)
-    } catch (dbError) {
-      console.error('Erro ao salvar mensagem no banco:', dbError)
-      // Não falhar a requisição se apenas o banco falhar
-    }
-
+    // Retornar a resposta do webhook para exibição imediata no painel
     return NextResponse.json({
       success: true,
       message: 'Mensagem enviada com sucesso',
       webhookResponse: responseData,
-      sessionId: phone
+      sessionId: phone,
+      // Dados para atualização otimista no frontend
+      optimisticMessage: {
+        session_id: phone,
+        message: {
+          type: 'ai',
+          content: message
+        },
+        media_url: mediaUrl || null,
+        timestamp: new Date().toISOString()
+      }
     })
 
   } catch (error) {
