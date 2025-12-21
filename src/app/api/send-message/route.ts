@@ -56,6 +56,9 @@ export async function POST(request: NextRequest) {
 
     const responseData = await webhookResponse.json().catch(() => ({}))
 
+    // Log para debug - ver o que o N8N está retornando
+    console.log('📨 Resposta completa do N8N:', JSON.stringify(responseData, null, 2))
+
     // Não salvar no banco - deixar o N8N processar e salvar
     // O painel usa a resposta HTTP diretamente para exibição imediata
 
@@ -75,18 +78,63 @@ export async function POST(request: NextRequest) {
     })
 
     // 2. Resposta do agente (se houver no webhook response)
-    if (responseData && responseData.response) {
+    // Tentar múltiplos campos possíveis do N8N
+    const agentResponse = responseData?.response ||
+                         responseData?.message ||
+                         responseData?.output ||
+                         responseData?.data?.response ||
+                         responseData?.data?.message
+
+    console.log('🤖 Resposta do agente capturada:', agentResponse)
+
+    if (agentResponse) {
       messages.push({
         id: `live-agent-${Date.now()}`,
         session_id: phone,
         message: {
           type: 'ai',
-          content: responseData.response
+          content: agentResponse
         },
         media_url: null,
         timestamp: new Date().toISOString()
       })
     }
+
+    // Aguardar um pouco para o N8N processar e salvar no banco (se não vier no HTTP)
+    if (!agentResponse) {
+      console.log('⏳ Aguardando 2s para N8N processar...')
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // Buscar mensagens recentes do banco para capturar resposta do agente
+      const { data: recentMessages } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('session_id', phone)
+        .order('timestamp', { ascending: false })
+        .limit(5)
+
+      console.log('💾 Mensagens recentes do banco:', recentMessages)
+
+      // Adicionar mensagens do banco que não sejam a nossa mensagem enviada
+      if (recentMessages && recentMessages.length > 0) {
+        recentMessages.forEach(msg => {
+          // Ignorar a mensagem que acabamos de enviar e mensagens internas
+          if (msg.message?.content !== message &&
+              msg.message?.type === 'ai' &&
+              !messages.some(m => m.message?.content === msg.message?.content)) {
+            messages.push({
+              id: msg.id,
+              session_id: msg.session_id,
+              message: msg.message,
+              media_url: msg.media_url,
+              timestamp: msg.timestamp
+            })
+          }
+        })
+      }
+    }
+
+    console.log('📤 Mensagens finais retornadas:', messages.length)
 
     // Retornar mensagens para exibição imediata
     return NextResponse.json({
