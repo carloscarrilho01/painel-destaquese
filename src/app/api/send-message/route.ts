@@ -62,31 +62,29 @@ export async function POST(request: NextRequest) {
     // Preparar mensagens para exibição imediata
     const messages = []
 
-    // 1. Mensagem do usuário/atendente
+    // 1. Mensagem do atendente (será exibida no lado do agente)
     messages.push({
-      id: `temp-user-${Date.now()}`,
+      id: `live-user-${Date.now()}`,
       session_id: phone,
       message: {
-        type: 'ai',
+        type: 'ai', // Mensagens do atendente aparecem como 'ai' (lado direito como agente)
         content: message
       },
       media_url: mediaUrl || null,
-      timestamp: new Date().toISOString(),
-      isTemporary: true
+      timestamp: new Date().toISOString()
     })
 
     // 2. Resposta do agente (se houver no webhook response)
     if (responseData && responseData.response) {
       messages.push({
-        id: `temp-agent-${Date.now()}`,
+        id: `live-agent-${Date.now()}`,
         session_id: phone,
         message: {
           type: 'ai',
           content: responseData.response
         },
         media_url: null,
-        timestamp: new Date().toISOString(),
-        isTemporary: true
+        timestamp: new Date().toISOString()
       })
     }
 

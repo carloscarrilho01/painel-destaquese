@@ -144,7 +144,7 @@ export function ChatView({
   const [filePreview, setFilePreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [isRecordingMode, setIsRecordingMode] = useState(false)
-  const [optimisticMessages, setOptimisticMessages] = useState<any[]>([])
+  const [liveMessages, setLiveMessages] = useState<any[]>([]) // Mensagens da sessão atual (HTTP)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -154,11 +154,11 @@ export function ChatView({
     if (conversation && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [conversation?.messages.length, optimisticMessages.length])
+  }, [conversation?.messages.length, liveMessages.length])
 
-  // Limpar mensagens otimistas ao trocar de conversa
+  // Limpar mensagens HTTP ao trocar de conversa
   useEffect(() => {
-    setOptimisticMessages([])
+    setLiveMessages([])
   }, [session_id])
 
   // Limpar preview quando arquivo for removido
@@ -258,16 +258,9 @@ export function ChatView({
       const data = await response.json()
 
       if (response.ok) {
-        // Adicionar mensagens da resposta HTTP para exibição imediata
+        // Adicionar mensagens da resposta HTTP (são as mensagens da sessão atual)
         if (data.messages && data.messages.length > 0) {
-          setOptimisticMessages(prev => [...prev, ...data.messages])
-
-          // Remover mensagens temporárias após 30 segundos (já terão vindo do banco)
-          setTimeout(() => {
-            setOptimisticMessages(prev =>
-              prev.filter(m => !m.isTemporary)
-            )
-          }, 30000)
+          setLiveMessages(prev => [...prev, ...data.messages])
         }
 
         setFeedback({ type: 'success', text: selectedFile ? 'Arquivo enviado com sucesso!' : 'Mensagem enviada com sucesso!' })
@@ -335,15 +328,9 @@ export function ChatView({
       const data = await response.json()
 
       if (response.ok) {
-        // Adicionar mensagens da resposta HTTP
+        // Adicionar mensagens da resposta HTTP (são as mensagens da sessão atual)
         if (data.messages && data.messages.length > 0) {
-          setOptimisticMessages(prev => [...prev, ...data.messages])
-
-          setTimeout(() => {
-            setOptimisticMessages(prev =>
-              prev.filter(m => !m.isTemporary)
-            )
-          }, 30000)
+          setLiveMessages(prev => [...prev, ...data.messages])
         }
 
         setFeedback({ type: 'success', text: 'Áudio enviado com sucesso!' })
@@ -384,17 +371,17 @@ export function ChatView({
       return !isToolMessage(content) && !isInternalProcessingMessage(content)
     })
 
-  // Combinar mensagens do banco com mensagens temporárias
-  // Mostrar mensagens temporárias apenas se ainda não vieram do banco
+  // Priorizar mensagens HTTP (da sessão atual) sobre mensagens do banco
+  // Combinar mensagens do banco (histórico) com mensagens HTTP (sessão atual)
   const dbMessageContents = new Set(
     filteredMessages.map(m => `${m.message?.content}-${m.message?.type}`)
   )
 
-  const tempMessagesToShow = optimisticMessages.filter(m =>
+  const liveMessagesToShow = liveMessages.filter(m =>
     !dbMessageContents.has(`${m.message?.content}-${m.message?.type}`)
   )
 
-  const messagesToShow = [...filteredMessages, ...tempMessagesToShow]
+  const messagesToShow = [...filteredMessages, ...liveMessagesToShow]
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--background)]">
