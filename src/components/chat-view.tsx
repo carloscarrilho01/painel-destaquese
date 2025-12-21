@@ -154,7 +154,7 @@ export function ChatView({
     if (conversation && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [conversation?.messages.length])
+  }, [conversation?.messages.length, optimisticMessages.length])
 
   // Limpar mensagens otimistas ao trocar de conversa
   useEffect(() => {
@@ -385,7 +385,21 @@ export function ChatView({
     })
 
   // Combinar mensagens do banco com mensagens otimistas
-  const messagesToShow = [...filteredMessages, ...optimisticMessages]
+  // Deduplicar por conteúdo e timestamp para evitar duplicatas
+  const allMessages = [...filteredMessages, ...optimisticMessages]
+  const messagesToShow = allMessages.filter((msg, index, self) => {
+    // Se é mensagem temporária, sempre mostrar
+    if (msg.isTemporary) return true
+
+    // Para mensagens do banco, verificar se não há duplicata temporária
+    const hasDuplicate = self.some((m, i) =>
+      i !== index &&
+      m.message?.content === msg.message?.content &&
+      Math.abs(new Date(m.timestamp || 0).getTime() - new Date(msg.timestamp || 0).getTime()) < 5000
+    )
+
+    return !hasDuplicate
+  })
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--background)]">
