@@ -6,36 +6,6 @@ import type { Conversation, MessageType } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 import { AudioRecorder } from './audio-recorder'
 
-// Extrai o conteúdo útil de mensagens que contêm informações de tools
-function extractUsefulContent(content: string): string | null {
-  if (!content) return null
-
-  // Se começa com [Used tools: ...], extrair apenas o resultado útil
-  if (content.startsWith('[Used tools:') || content.startsWith('Used tools:')) {
-    // Padrão: [Used tools: Tool: nome_tool, Input: {}, Result: [{\"id\":\"...\", \"content\":\"CONTEÚDO ÚTIL\"}]]
-    // Ou: [Used tools: Tool: nome_tool, Input: {}, Result: CONTEÚDO]
-
-    // Tentar extrair conteúdo de Result:
-    const resultMatch = content.match(/Result:\s*\[\{[^\}]*"content"\s*:\s*"([^"]+)"/i)
-    if (resultMatch && resultMatch[1]) {
-      return resultMatch[1]
-    }
-
-    // Tentar extrair resultado simples após "Result:"
-    const simpleResultMatch = content.match(/Result:\s*(.+)$/i)
-    if (simpleResultMatch && simpleResultMatch[1]) {
-      const result = simpleResultMatch[1].trim()
-      // Remove colchetes e chaves extras se for JSON
-      return result.replace(/^\[|\]$/g, '').replace(/^\{|\}$/g, '').trim()
-    }
-
-    // Se não conseguiu extrair, retorna null para ocultar a mensagem
-    return null
-  }
-
-  return content
-}
-
 export function ChatView({
   conversation,
   session_id,
@@ -253,21 +223,8 @@ export function ChatView({
     ? conversation.clientName.slice(0, 2).toUpperCase()
     : session_id?.slice(-2)
 
-  // Processar mensagens: extrair conteúdo útil e filtrar as que não têm conteúdo
-  const messagesToShow = (conversation.visibleMessages || conversation.messages)
-    .map(m => {
-      const processedContent = extractUsefulContent(m.message?.content)
-      if (processedContent === null) return null // Filtrar mensagens sem conteúdo útil
-
-      return {
-        ...m,
-        message: {
-          ...m.message,
-          content: processedContent
-        }
-      }
-    })
-    .filter(m => m !== null)
+  // Exibir todas as mensagens sem filtros
+  const messagesToShow = conversation.messages
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--background)]">
