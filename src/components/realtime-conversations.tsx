@@ -26,17 +26,22 @@ function isInternalProcessingMessage(content: string): boolean {
     // Não é JSON, continuar verificando outros padrões
   }
 
-  // Verificar padrões de metadados do cliente
+  // Verificar padrões de metadados do cliente (pode estar em qualquer linha)
   const metadataPatterns = [
-    /^nome do cliente:/i,
-    /^numero do cliente:/i,
-    /^interesse:/i,
-    /^telefone:/i,
-    /^email:/i,
-    /^Visita para ver Civic \(cor escura\)/i,
+    /nome do cliente:/i,
+    /numero do cliente:/i,
+    /interesse:/i,
+    /telefone:/i,
+    /email:/i,
   ]
 
-  return metadataPatterns.some(pattern => pattern.test(content.trim()))
+  // Se contém qualquer um desses padrões, é mensagem interna
+  const hasMetadata = metadataPatterns.some(pattern => pattern.test(content))
+
+  // Se tem tags XML/HTML <CLIENTE>, <AGENDA>, etc., é mensagem interna
+  const hasXMLTags = /<\/?[A-Z_]+>/.test(content)
+
+  return hasMetadata || hasXMLTags
 }
 
 function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conversation[] {
