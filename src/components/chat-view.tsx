@@ -258,21 +258,16 @@ export function ChatView({
       const data = await response.json()
 
       if (response.ok) {
-        // Adicionar mensagem otimista para exibição imediata
-        if (data.optimisticMessage) {
-          const optimisticId = `optimistic-${Date.now()}`
-          setOptimisticMessages(prev => [...prev, {
-            ...data.optimisticMessage,
-            id: optimisticId,
-            isOptimistic: true
-          }])
+        // Adicionar mensagens da resposta HTTP para exibição imediata
+        if (data.messages && data.messages.length > 0) {
+          setOptimisticMessages(prev => [...prev, ...data.messages])
 
-          // Remover mensagem otimista após 10 segundos (já terá vindo do banco)
+          // Remover mensagens temporárias após 15 segundos (já terão vindo do banco)
           setTimeout(() => {
             setOptimisticMessages(prev =>
-              prev.filter(m => m.id !== optimisticId)
+              prev.filter(m => !m.isTemporary)
             )
-          }, 10000)
+          }, 15000)
         }
 
         setFeedback({ type: 'success', text: selectedFile ? 'Arquivo enviado com sucesso!' : 'Mensagem enviada com sucesso!' })
@@ -340,6 +335,17 @@ export function ChatView({
       const data = await response.json()
 
       if (response.ok) {
+        // Adicionar mensagens da resposta HTTP
+        if (data.messages && data.messages.length > 0) {
+          setOptimisticMessages(prev => [...prev, ...data.messages])
+
+          setTimeout(() => {
+            setOptimisticMessages(prev =>
+              prev.filter(m => !m.isTemporary)
+            )
+          }, 15000)
+        }
+
         setFeedback({ type: 'success', text: 'Áudio enviado com sucesso!' })
         setIsRecordingMode(false)
         setTimeout(() => setFeedback(null), 3000)

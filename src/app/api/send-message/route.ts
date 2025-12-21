@@ -56,25 +56,47 @@ export async function POST(request: NextRequest) {
 
     const responseData = await webhookResponse.json().catch(() => ({}))
 
-    // Não salvar a mensagem do atendente no banco - deixar o N8N processar e salvar
-    // Isso evita mensagens duplicadas e permite que o N8N decida o que salvar
+    // Não salvar no banco - deixar o N8N processar e salvar
+    // O painel usa a resposta HTTP diretamente para exibição imediata
 
-    // Retornar a resposta do webhook para exibição imediata no painel
+    // Preparar mensagens para exibição imediata
+    const messages = []
+
+    // 1. Mensagem do usuário/atendente
+    messages.push({
+      id: `temp-user-${Date.now()}`,
+      session_id: phone,
+      message: {
+        type: 'ai',
+        content: message
+      },
+      media_url: mediaUrl || null,
+      timestamp: new Date().toISOString(),
+      isTemporary: true
+    })
+
+    // 2. Resposta do agente (se houver no webhook response)
+    if (responseData && responseData.response) {
+      messages.push({
+        id: `temp-agent-${Date.now()}`,
+        session_id: phone,
+        message: {
+          type: 'ai',
+          content: responseData.response
+        },
+        media_url: null,
+        timestamp: new Date().toISOString(),
+        isTemporary: true
+      })
+    }
+
+    // Retornar mensagens para exibição imediata
     return NextResponse.json({
       success: true,
       message: 'Mensagem enviada com sucesso',
       webhookResponse: responseData,
       sessionId: phone,
-      // Dados para atualização otimista no frontend
-      optimisticMessage: {
-        session_id: phone,
-        message: {
-          type: 'ai',
-          content: message
-        },
-        media_url: mediaUrl || null,
-        timestamp: new Date().toISOString()
-      }
+      messages: messages
     })
 
   } catch (error) {
