@@ -11,10 +11,11 @@ function isToolMessage(content: string): boolean {
   return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
 }
 
-// Verificar se é mensagem de processamento interno (categoria/intenções)
+// Verificar se é mensagem de processamento interno (categoria/intenções/metadados)
 function isInternalProcessingMessage(content: string): boolean {
   if (!content) return false
 
+  // Verificar JSON estruturado
   try {
     const parsed = JSON.parse(content)
     if (parsed.output) {
@@ -22,10 +23,20 @@ function isInternalProcessingMessage(content: string): boolean {
       return !!(parsed.output.categoria || parsed.output.intencoes)
     }
   } catch {
-    return false
+    // Não é JSON, continuar verificando outros padrões
   }
 
-  return false
+  // Verificar padrões de metadados do cliente
+  const metadataPatterns = [
+    /^nome do cliente:/i,
+    /^numero do cliente:/i,
+    /^interesse:/i,
+    /^telefone:/i,
+    /^email:/i,
+    /^Visita para ver Civic \(cor escura\)/i,
+  ]
+
+  return metadataPatterns.some(pattern => pattern.test(content.trim()))
 }
 
 function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conversation[] {
