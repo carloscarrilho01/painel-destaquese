@@ -156,6 +156,11 @@ export function ChatView({
     }
   }, [conversation?.messages.length])
 
+  // Limpar mensagens otimistas ao trocar de conversa
+  useEffect(() => {
+    setOptimisticMessages([])
+  }, [session_id])
+
   // Limpar preview quando arquivo for removido
   useEffect(() => {
     return () => {
@@ -255,16 +260,17 @@ export function ChatView({
       if (response.ok) {
         // Adicionar mensagem otimista para exibição imediata
         if (data.optimisticMessage) {
+          const optimisticId = `optimistic-${Date.now()}`
           setOptimisticMessages(prev => [...prev, {
             ...data.optimisticMessage,
-            id: `optimistic-${Date.now()}`,
+            id: optimisticId,
             isOptimistic: true
           }])
 
           // Remover mensagem otimista após 10 segundos (já terá vindo do banco)
           setTimeout(() => {
             setOptimisticMessages(prev =>
-              prev.filter(m => m.id !== `optimistic-${Date.now()}`)
+              prev.filter(m => m.id !== optimisticId)
             )
           }, 10000)
         }
