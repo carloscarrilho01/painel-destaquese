@@ -7,8 +7,34 @@ import { ConversationList } from '@/components/conversation-list'
 import { ChatView } from '@/components/chat-view'
 import type { ChatMessage, Conversation, Lead } from '@/lib/types'
 
-function isToolMessage(content: string): boolean {
-  return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
+// Extrai o conteúdo útil de mensagens que contêm informações de tools
+function extractUsefulContent(content: string): string | null {
+  if (!content) return null
+
+  // Se começa com [Used tools: ...], extrair apenas o resultado útil
+  if (content.startsWith('[Used tools:') || content.startsWith('Used tools:')) {
+    // Padrão: [Used tools: Tool: nome_tool, Input: {}, Result: [{\"id\":\"...\", \"content\":\"CONTEÚDO ÚTIL\"}]]
+    // Ou: [Used tools: Tool: nome_tool, Input: {}, Result: CONTEÚDO]
+
+    // Tentar extrair conteúdo de Result:
+    const resultMatch = content.match(/Result:\s*\[\{[^\}]*"content"\s*:\s*"([^"]+)"/i)
+    if (resultMatch && resultMatch[1]) {
+      return resultMatch[1]
+    }
+
+    // Tentar extrair resultado simples após "Result:"
+    const simpleResultMatch = content.match(/Result:\s*(.+)$/i)
+    if (simpleResultMatch && simpleResultMatch[1]) {
+      const result = simpleResultMatch[1].trim()
+      // Remove colchetes e chaves extras se for JSON
+      return result.replace(/^\[|\]$/g, '').replace(/^\{|\}$/g, '').trim()
+    }
+
+    // Se não conseguiu extrair, retorna null para ocultar a mensagem
+    return null
+  }
+
+  return content
 }
 
 function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conversation[] {
@@ -45,8 +71,22 @@ function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conve
   })
 
   return Array.from(grouped.entries()).map(([session_id, messages]) => {
-    // Filtrar mensagens de tool_calls para exibição
-    const visibleMessages = messages.filter(m => !isToolMessage(m.message?.content))
+    // Processar mensagens: extrair conteúdo útil e filtrar as que não têm conteúdo
+    const visibleMessages = messages
+      .map(m => {
+        const processedContent = extractUsefulContent(m.message?.content)
+        if (processedContent === null) return null
+
+        return {
+          ...m,
+          message: {
+            ...m.message,
+            content: processedContent
+          }
+        }
+      })
+      .filter(m => m !== null) as ChatMessage[]
+
     const lastMsg = visibleMessages[visibleMessages.length - 1] || messages[messages.length - 1]
 
     // Buscar lead completo pelo telefone (session_id) - tentar várias variações
