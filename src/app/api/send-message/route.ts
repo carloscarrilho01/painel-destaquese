@@ -58,13 +58,20 @@ export async function POST(request: NextRequest) {
 
     // Salvar mensagem no banco de dados para aparecer na lista
     try {
-      await supabase.from('chats').insert({
+      const messageData: any = {
         session_id: phone,
         message: {
-          type: 'human',
+          type: 'ai', // Mensagem do agente/atendente, não do cliente
           content: message
         }
-      })
+      }
+
+      // Se houver media_url, adicionar ao objeto
+      if (mediaUrl) {
+        messageData.media_url = mediaUrl
+      }
+
+      await supabase.from('chats').insert(messageData)
     } catch (dbError) {
       console.error('Erro ao salvar mensagem no banco:', dbError)
       // Não falhar a requisição se apenas o banco falhar
