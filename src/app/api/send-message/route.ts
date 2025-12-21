@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     // O painel usa a resposta HTTP diretamente para exibição imediata
 
     // Preparar mensagens para exibição imediata
-    const messages = []
+    const messages: any[] = []
 
     // 1. Mensagem do atendente (será exibida no lado do agente)
     messages.push({
