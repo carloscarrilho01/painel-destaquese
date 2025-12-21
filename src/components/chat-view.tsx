@@ -61,12 +61,11 @@ function parseAgentMessage(content: string): {
         }
       }
 
-      // Se são intenções (tem campo "intencoes")
+      // Se são intenções (tem campo "intencoes") - não exibir
       if (output.intencoes && Array.isArray(output.intencoes)) {
-        const intencoes = output.intencoes.join(', ')
         return {
           isStructured: true,
-          displayContent: `🎯 Intenções: ${intencoes}`,
+          displayContent: '', // Não exibir mensagens de intenções
           metadata: output
         }
       }
@@ -376,6 +375,11 @@ export function ChatView({
 
           // Parsear mensagem estruturada se for do agente
           const parsedMessage = !isHuman ? parseAgentMessage(chat.message.content) : null
+
+          // Se a mensagem parseada está vazia (intenções, categorias), não renderizar nada
+          if (parsedMessage && !parsedMessage.displayContent && !imageUrl) {
+            return null
+          }
 
           return (
             <div
