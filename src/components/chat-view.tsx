@@ -52,11 +52,11 @@ function parseAgentMessage(content: string): {
         }
       }
 
-      // Se é categorização (tem campo "categoria")
+      // Se é categorização (tem campo "categoria") - não exibir
       if (output.categoria) {
         return {
           isStructured: true,
-          displayContent: `📋 Categoria identificada: ${output.categoria}`,
+          displayContent: '', // Não exibir mensagens de categorização
           metadata: output
         }
       }
