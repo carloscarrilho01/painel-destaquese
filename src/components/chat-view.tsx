@@ -10,6 +10,105 @@ function isToolMessage(content: string): boolean {
   return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
 }
 
+// Verificar se é mensagem de processamento interno (categoria/intenções)
+function isInternalProcessingMessage(content: string): boolean {
+  if (!content) return false
+
+  try {
+    const parsed = JSON.parse(content)
+    if (parsed.output) {
+      // Ocultar mensagens de categorização e intenções
+      return !!(parsed.output.categoria || parsed.output.intencoes)
+    }
+  } catch {
+    return false
+  }
+
+  return false
+}
+
+// Função para parsear e formatar mensagens estruturadas do agente
+function parseAgentMessage(content: string): {
+  isStructured: boolean
+  displayContent: string
+  metadata?: any
+} {
+  if (!content) return { isStructured: false, displayContent: content }
+
+  // Tentar parsear como JSON
+  try {
+    const parsed = JSON.parse(content)
+
+    // Se tem a estrutura {"output": {...}}
+    if (parsed.output) {
+      const output = parsed.output
+
+      // Se é uma resposta de texto (tem campo "resposta")
+      if (output.resposta) {
+        return {
+          isStructured: true,
+          displayContent: output.resposta,
+          metadata: output
+        }
+      }
+
+      // Se é categorização (tem campo "categoria")
+      if (output.categoria) {
+        return {
+          isStructured: true,
+          displayContent: `📋 Categoria identificada: ${output.categoria}`,
+          metadata: output
+        }
+      }
+
+      // Se são intenções (tem campo "intencoes")
+      if (output.intencoes && Array.isArray(output.intencoes)) {
+        const intencoes = output.intencoes.join(', ')
+        return {
+          isStructured: true,
+          displayContent: `🎯 Intenções: ${intencoes}`,
+          metadata: output
+        }
+      }
+
+      // Outros formatos de output estruturado
+      return {
+        isStructured: true,
+        displayContent: JSON.stringify(output, null, 2),
+        metadata: output
+      }
+    }
+
+    // Se é JSON mas não tem a estrutura esperada, mostrar formatado
+    return {
+      isStructured: true,
+      displayContent: JSON.stringify(parsed, null, 2),
+      metadata: parsed
+    }
+  } catch {
+    // Não é JSON válido
+    // Verificar se tem tags XML/HTML como <CLIENTE>, <AGENDA>, etc.
+    const hasXMLTags = /<[A-Z_]+>/.test(content)
+
+    if (hasXMLTags) {
+      // Remover tags XML/HTML e limpar o conteúdo
+      let cleaned = content
+        .replace(/<\/?[A-Z_]+>/g, '') // Remove tags como <CLIENTE>, </CLIENTE>, <AGENDA>, etc.
+        .replace(/\n\s*\n/g, '\n') // Remove linhas vazias múltiplas
+        .trim()
+
+      return {
+        isStructured: true,
+        displayContent: cleaned,
+        metadata: { hasXMLTags: true }
+      }
+    }
+
+    // Retornar conteúdo original
+    return { isStructured: false, displayContent: content }
+  }
+}
+
 export function ChatView({
   conversation,
   session_id,
@@ -229,7 +328,10 @@ export function ChatView({
 
   // Usar visibleMessages se disponível, senão filtrar na hora
   const messagesToShow = conversation.visibleMessages ||
-    conversation.messages.filter(m => !isToolMessage(m.message?.content))
+    conversation.messages.filter(m =>
+      !isToolMessage(m.message?.content) &&
+      !isInternalProcessingMessage(m.message?.content)
+    )
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--background)]">
@@ -272,6 +374,9 @@ export function ChatView({
           // Verificar se o conteúdo é um nome de arquivo de imagem
           const isImageFilename = chat.message.content?.match(/\.(jpg|jpeg|png|gif|webp|mp4|mp3|ogg|wav|oga)$/i)
 
+          // Parsear mensagem estruturada se for do agente
+          const parsedMessage = !isHuman ? parseAgentMessage(chat.message.content) : null
+
           return (
             <div
               key={chat.id}
@@ -295,20 +400,6 @@ export function ChatView({
                   </span>
                 </div>
 
-                {/* Debug: Mostrar estrutura do objeto se for imagem */}
-                {isImageFilename && !imageUrl && (
-                  <div className="mb-2">
-                    <p className="text-xs font-bold mb-1">DEBUG - chat.message:</p>
-                    <pre className="text-xs bg-black/20 p-2 rounded overflow-auto mb-2">
-                      {JSON.stringify(chat.message, null, 2)}
-                    </pre>
-                    <p className="text-xs font-bold mb-1">DEBUG - chat completo:</p>
-                    <pre className="text-xs bg-black/20 p-2 rounded overflow-auto">
-                      {JSON.stringify(chat, null, 2)}
-                    </pre>
-                  </div>
-                )}
-
                 {/* Renderizar imagem se existir */}
                 {imageUrl && (
                   <div className="mb-2">
@@ -324,9 +415,11 @@ export function ChatView({
                   </div>
                 )}
 
-                {/* Renderizar texto se não for apenas nome de arquivo */}
+                {/* Renderizar texto - usar conteúdo parseado se for mensagem estruturada do agente */}
                 {chat.message.content && !isImageFilename && (
-                  <p className="text-sm whitespace-pre-wrap">{chat.message.content}</p>
+                  <p className="text-sm whitespace-pre-wrap">
+                    {parsedMessage ? parsedMessage.displayContent : chat.message.content}
+                  </p>
                 )}
               </div>
             </div>

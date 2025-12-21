@@ -11,6 +11,23 @@ function isToolMessage(content: string): boolean {
   return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
 }
 
+// Verificar se é mensagem de processamento interno (categoria/intenções)
+function isInternalProcessingMessage(content: string): boolean {
+  if (!content) return false
+
+  try {
+    const parsed = JSON.parse(content)
+    if (parsed.output) {
+      // Ocultar mensagens de categorização e intenções
+      return !!(parsed.output.categoria || parsed.output.intencoes)
+    }
+  } catch {
+    return false
+  }
+
+  return false
+}
+
 function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conversation[] {
   // Criar mapa de telefone -> lead completo (normalizado com variações)
   const leadMap = new Map<string, Lead>()
@@ -45,8 +62,11 @@ function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conve
   })
 
   return Array.from(grouped.entries()).map(([session_id, messages]) => {
-    // Filtrar mensagens de tool_calls para exibição
-    const visibleMessages = messages.filter(m => !isToolMessage(m.message?.content))
+    // Filtrar mensagens de tool_calls e processamento interno para exibição
+    const visibleMessages = messages.filter(m =>
+      !isToolMessage(m.message?.content) &&
+      !isInternalProcessingMessage(m.message?.content)
+    )
     const lastMsg = visibleMessages[visibleMessages.length - 1] || messages[messages.length - 1]
 
     // Buscar lead completo pelo telefone (session_id) - tentar várias variações
