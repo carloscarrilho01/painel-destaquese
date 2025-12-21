@@ -29,6 +29,7 @@ function isInternalProcessingMessage(content: string): boolean {
   const metadataPatterns = [
     /nome do cliente:/i,
     /numero do cliente:/i,
+    /n[uú]mero do cliente:/i,
     /interesse:/i,
     /telefone:/i,
     /email:/i,
@@ -40,7 +41,12 @@ function isInternalProcessingMessage(content: string): boolean {
   // Se tem tags XML/HTML <CLIENTE>, <AGENDA>, etc., é mensagem interna
   const hasXMLTags = /<\/?[A-Z_]+>/.test(content)
 
-  return hasMetadata || hasXMLTags
+  // Se tem múltiplas linhas E contém "cliente" ou "interesse", provavelmente é metadado
+  const hasMultipleLines = (content.match(/\n/g) || []).length >= 2
+  const hasClientKeywords = /cliente|interesse/i.test(content)
+  const looksLikeMetadata = hasMultipleLines && hasClientKeywords && content.length < 500
+
+  return hasMetadata || hasXMLTags || looksLikeMetadata
 }
 
 // Função para parsear e formatar mensagens estruturadas do agente
@@ -342,11 +348,12 @@ export function ChatView({
     : session_id?.slice(-2)
 
   // Usar visibleMessages se disponível, senão filtrar na hora
+  // Filtrar mensagens de ferramentas e mensagens internas (independente do tipo)
   const messagesToShow = conversation.visibleMessages ||
-    conversation.messages.filter(m =>
-      !isToolMessage(m.message?.content) &&
-      !isInternalProcessingMessage(m.message?.content)
-    )
+    conversation.messages.filter(m => {
+      const content = m.message?.content
+      return !isToolMessage(content) && !isInternalProcessingMessage(content)
+    })
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--background)]">
