@@ -145,6 +145,7 @@ export function ChatView({
   const [uploading, setUploading] = useState(false)
   const [isRecordingMode, setIsRecordingMode] = useState(false)
   const [liveMessages, setLiveMessages] = useState<any[]>([]) // Mensagens da sessão atual (HTTP)
+  const [pollingForResponse, setPollingForResponse] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -218,6 +219,35 @@ export function ChatView({
     return publicUrl
   }
 
+  // Buscar novas mensagens do banco (para capturar respostas do agente)
+  const fetchNewMessages = async (sessionId: string, afterTimestamp: string) => {
+    const { data: newMessages } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('session_id', sessionId)
+      .gt('timestamp', afterTimestamp)
+      .order('timestamp', { ascending: true })
+
+    if (newMessages && newMessages.length > 0) {
+      console.log('🔄 Novas mensagens encontradas no banco:', newMessages.length)
+
+      // Adicionar apenas mensagens que não estão em liveMessages
+      const existingContents = new Set(
+        liveMessages.map(m => `${m.id}-${m.message?.content}`)
+      )
+
+      const newMessagesToAdd = newMessages.filter(msg =>
+        !existingContents.has(`${msg.id}-${msg.message?.content}`)
+      )
+
+      if (newMessagesToAdd.length > 0) {
+        setLiveMessages(prev => [...prev, ...newMessagesToAdd])
+      }
+    }
+
+    return newMessages || []
+  }
+
   const handleSendMessage = async () => {
     if ((!message.trim() && !selectedFile) || !session_id || sending) return
 
@@ -258,6 +288,8 @@ export function ChatView({
       const data = await response.json()
 
       if (response.ok) {
+        const sendTimestamp = new Date().toISOString()
+
         // Adicionar mensagens da resposta HTTP (são as mensagens da sessão atual)
         if (data.messages && data.messages.length > 0) {
           setLiveMessages(prev => [...prev, ...data.messages])
@@ -266,6 +298,27 @@ export function ChatView({
         setFeedback({ type: 'success', text: selectedFile ? 'Arquivo enviado com sucesso!' : 'Mensagem enviada com sucesso!' })
         setMessage('')
         handleRemoveFile()
+
+        // Fazer polling para capturar resposta do agente
+        setPollingForResponse(true)
+        let pollCount = 0
+        const maxPolls = 10 // Tentar 10 vezes (10 segundos)
+
+        const pollInterval = setInterval(async () => {
+          pollCount++
+          console.log(`🔄 Polling ${pollCount}/${maxPolls} para novas mensagens...`)
+
+          const newMessages = await fetchNewMessages(session_id, sendTimestamp)
+
+          // Parar polling se encontrou resposta do agente ou atingiu máximo
+          const hasAgentResponse = newMessages.some(m => m.message?.type === 'ai' && m.message?.content !== message)
+
+          if (hasAgentResponse || pollCount >= maxPolls) {
+            clearInterval(pollInterval)
+            setPollingForResponse(false)
+            console.log(hasAgentResponse ? '✅ Resposta do agente capturada!' : '⏱️ Timeout de polling')
+          }
+        }, 1000)
 
         // Limpar feedback após 3 segundos
         setTimeout(() => setFeedback(null), 3000)
@@ -328,6 +381,8 @@ export function ChatView({
       const data = await response.json()
 
       if (response.ok) {
+        const sendTimestamp = new Date().toISOString()
+
         // Adicionar mensagens da resposta HTTP (são as mensagens da sessão atual)
         if (data.messages && data.messages.length > 0) {
           setLiveMessages(prev => [...prev, ...data.messages])
@@ -335,6 +390,23 @@ export function ChatView({
 
         setFeedback({ type: 'success', text: 'Áudio enviado com sucesso!' })
         setIsRecordingMode(false)
+
+        // Fazer polling para capturar resposta do agente
+        setPollingForResponse(true)
+        let pollCount = 0
+        const maxPolls = 10
+
+        const pollInterval = setInterval(async () => {
+          pollCount++
+          const newMessages = await fetchNewMessages(session_id, sendTimestamp)
+          const hasAgentResponse = newMessages.some(m => m.message?.type === 'ai')
+
+          if (hasAgentResponse || pollCount >= maxPolls) {
+            clearInterval(pollInterval)
+            setPollingForResponse(false)
+          }
+        }, 1000)
+
         setTimeout(() => setFeedback(null), 3000)
       } else {
         setFeedback({ type: 'error', text: data.error || 'Erro ao enviar áudio' })
