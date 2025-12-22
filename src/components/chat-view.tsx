@@ -6,6 +6,24 @@ import type { Conversation, MessageType } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 import { AudioRecorder } from './audio-recorder'
 
+// Filtra mensagens puramente técnicas (tool calls internos) mas mantém mensagens reais
+function isInternalToolMessage(content: string): boolean {
+  if (!content) return false
+
+  // Mensagens que começam com [Used tools: são chamadas internas de ferramentas
+  // Exemplos: [Used tools: Tool: atualiza_nome, Input: {...}, Result: ...]
+  if (content.startsWith('[Used tools:')) {
+    return true
+  }
+
+  // Mensagens que começam com "Used tools:" também são técnicas
+  if (content.startsWith('Used tools:')) {
+    return true
+  }
+
+  return false
+}
+
 export function ChatView({
   conversation,
   session_id,
@@ -223,8 +241,8 @@ export function ChatView({
     ? conversation.clientName.slice(0, 2).toUpperCase()
     : session_id?.slice(-2)
 
-  // Exibir todas as mensagens sem filtros
-  const messagesToShow = conversation.messages
+  // Filtrar apenas mensagens técnicas internas, manter mensagens reais do chat
+  const messagesToShow = conversation.messages.filter(m => !isInternalToolMessage(m.message?.content))
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--background)]">

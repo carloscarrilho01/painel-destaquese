@@ -7,6 +7,23 @@ import { ConversationList } from '@/components/conversation-list'
 import { ChatView } from '@/components/chat-view'
 import type { ChatMessage, Conversation, Lead } from '@/lib/types'
 
+// Filtra mensagens puramente técnicas (tool calls internos) mas mantém mensagens reais
+function isInternalToolMessage(content: string): boolean {
+  if (!content) return false
+
+  // Mensagens que começam com [Used tools: são chamadas internas de ferramentas
+  if (content.startsWith('[Used tools:')) {
+    return true
+  }
+
+  // Mensagens que começam com "Used tools:" também são técnicas
+  if (content.startsWith('Used tools:')) {
+    return true
+  }
+
+  return false
+}
+
 function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conversation[] {
   // Criar mapa de telefone -> lead completo (normalizado com variações)
   const leadMap = new Map<string, Lead>()
@@ -41,8 +58,9 @@ function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conve
   })
 
   return Array.from(grouped.entries()).map(([session_id, messages]) => {
-    // Exibir todas as mensagens sem filtros
-    const lastMsg = messages[messages.length - 1]
+    // Filtrar apenas mensagens técnicas internas, manter mensagens reais do chat
+    const visibleMessages = messages.filter(m => !isInternalToolMessage(m.message?.content))
+    const lastMsg = visibleMessages[visibleMessages.length - 1] || messages[messages.length - 1]
 
     // Buscar lead completo pelo telefone (session_id) - tentar várias variações
     const normalizedSessionId = session_id.replace(/\D/g, '')
@@ -54,8 +72,8 @@ function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conve
       session_id,
       clientName: lead?.nome || undefined,
       messages,
-      visibleMessages: messages,
-      messageCount: messages.length,
+      visibleMessages,
+      messageCount: visibleMessages.length,
       lastMessage: lastMsg?.message?.content || '',
       lastType: lastMsg?.message?.type || 'human',
       lead: lead || undefined
