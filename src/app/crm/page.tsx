@@ -9,7 +9,7 @@ import { LeadFormModal } from '@/components/lead-form-modal'
 import { Loader2, TrendingUp, Users, CheckCircle, XCircle, AlertCircle, UserPlus } from 'lucide-react'
 import type { Lead } from '@/lib/types'
 
-type Stage = 'novo' | 'contato' | 'interessado' | 'negociacao' | 'fechado' | 'perdido'
+type Stage = string
 
 export default function CRMPage() {
   const router = useRouter()
