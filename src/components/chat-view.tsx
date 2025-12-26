@@ -5,6 +5,7 @@ import { User, Bot, Send, Loader2, Paperclip, X, Image as ImageIcon, Mic } from 
 import type { Conversation, MessageType } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 import { AudioRecorder } from './audio-recorder'
+import { TemplateSelector } from './template-selector'
 
 function isToolMessage(content: string): boolean {
   return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
@@ -422,6 +423,11 @@ export function ChatView({
               >
                 <Mic size={18} />
               </button>
+
+              <TemplateSelector
+                onSelectTemplate={(content) => setMessage(content)}
+                leadData={conversation?.lead}
+              />
 
               <input
                 type="text"
