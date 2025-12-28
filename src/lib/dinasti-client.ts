@@ -86,9 +86,10 @@ export class DinastiClient {
   private instance: string
 
   constructor(baseUrl?: string, token?: string, instance?: string) {
-    // Garante que a URL base não termina com /api (será adicionado nos endpoints)
+    // A DinastiAPI não usa /api no caminho base
     const base = baseUrl || DINASTI_API_URL
-    this.baseUrl = base.endsWith('/api') ? base : `${base}/api`
+    // Remove /api se existir, pois a DinastiAPI não usa esse prefixo
+    this.baseUrl = base.endsWith('/api') ? base.slice(0, -4) : base
     this.token = token || DINASTI_API_TOKEN
     this.instance = instance || DINASTI_INSTANCE
 
