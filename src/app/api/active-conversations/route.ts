@@ -195,16 +195,33 @@ function cleanToolMessage(content: string): string {
   }
 
   // Remove dados técnicos de fotos (DISCOVERY, CIVIC, etc)
-  // Padrão: {"row_number":1,"Carros disponiveis":"","Fotos bmw":"https://..."...}
-  if (cleaned.startsWith('[{"row_number"') || cleaned.startsWith('{"row_number"')) {
-    // É um array ou objeto JSON de dados técnicos, não é mensagem real
-    return ''
+  // Padrão: [{"row_number":1,"Carros disponiveis":"","Fotos bmw":"https://..."...}]
+  if (cleaned.startsWith('[{"row_number"')) {
+    // Remove o array JSON completo e pega o que vem depois
+    const endIndex = cleaned.lastIndexOf(']')
+    if (endIndex !== -1) {
+      cleaned = cleaned.substring(endIndex + 1).trim()
+    }
   }
 
-  // Remove prefixos de descoberta de fotos como ":"[{"row_number"
-  if (cleaned.includes('"row_number"') && cleaned.includes('"Fotos')) {
-    // Contém dados técnicos de fotos, bloqueia toda mensagem
-    return ''
+  // Remove objetos JSON que começam com {"row_number"
+  if (cleaned.startsWith('{"row_number"')) {
+    // Tenta encontrar o fim do objeto JSON
+    let depth = 0
+    let endIndex = -1
+    for (let i = 0; i < cleaned.length; i++) {
+      if (cleaned[i] === '{') depth++
+      if (cleaned[i] === '}') {
+        depth--
+        if (depth === 0) {
+          endIndex = i
+          break
+        }
+      }
+    }
+    if (endIndex !== -1) {
+      cleaned = cleaned.substring(endIndex + 1).trim()
+    }
   }
 
   // Se após limpar não sobrou nada, significa que era apenas tool call sem conteúdo
