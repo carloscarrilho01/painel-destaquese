@@ -32,10 +32,11 @@ export function LeadsTable({
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
   const filtered = leads.filter(lead => {
+    const searchLower = search.toLowerCase()
     const matchesSearch =
-      lead.telefone.toLowerCase().includes(search.toLowerCase()) ||
-      lead.nome?.toLowerCase().includes(search.toLowerCase()) ||
-      lead.interesse?.toLowerCase().includes(search.toLowerCase())
+      lead.telefone?.toLowerCase().includes(searchLower) ||
+      lead.nome?.toLowerCase().includes(searchLower) ||
+      lead.interesse?.toLowerCase().includes(searchLower)
 
     const matchesFilter =
       filterInteressado === null || lead.interessado === filterInteressado
