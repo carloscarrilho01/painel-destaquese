@@ -28,27 +28,33 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🔄 [Active Conversations] Buscando conversas ativas...')
 
-    // 1. Busca conversas ativas direto da API Dinasti
     const startFetch = Date.now()
-    const chats = await dinastiClient.findChats()
+    const supabase = await createClient()
+
+    // 1. Busca mensagens do banco de dados (onde n8n salva)
+    const { data: chats, error: chatsError } = await supabase
+      .from('chats')
+      .select('*')
+      .order('id', { ascending: true })
+
     const fetchTime = Date.now() - startFetch
 
-    console.log(
-      `✅ [Active Conversations] ${chats.length} conversas encontradas em ${fetchTime}ms`
-    )
-
-    if (chats.length === 0) {
+    if (chatsError || !chats || chats.length === 0) {
+      console.log('✅ [Active Conversations] Nenhuma conversa encontrada')
       return NextResponse.json({
         conversations: [],
         count: 0,
-        source: 'dinasti-api',
+        source: 'supabase',
         fetchTime,
       })
     }
 
-    // 2. Busca dados de leads do banco apenas para enriquecimento
+    console.log(
+      `✅ [Active Conversations] ${chats.length} mensagens encontradas em ${fetchTime}ms`
+    )
+
+    // 2. Busca dados de leads
     const startLeads = Date.now()
-    const supabase = await createClient()
     const { data: leads } = await supabase.from('leads').select('*')
     const leadsTime = Date.now() - startLeads
 
@@ -56,9 +62,16 @@ export async function GET(request: NextRequest) {
       `✅ [Active Conversations] ${leads?.length || 0} leads carregados em ${leadsTime}ms`
     )
 
-    // 3. Cria mapa normalizado de leads (múltiplas variações de telefone)
-    const leadMap = new Map<string, Lead>()
+    // 3. Agrupa mensagens por session_id
+    const grouped = new Map<string, any[]>()
+    chats.forEach((chat: any) => {
+      const existing = grouped.get(chat.session_id) || []
+      existing.push(chat)
+      grouped.set(chat.session_id, existing)
+    })
 
+    // 4. Cria mapa de leads
+    const leadMap = new Map<string, Lead>()
     if (leads) {
       for (const lead of leads) {
         const variations = normalizePhoneVariations(lead.telefone)
@@ -68,70 +81,43 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 4. Processa conversas
-    const conversations: Conversation[] = []
-
-    for (const chat of chats) {
-      // Extrai telefone do JID (ex: 5511999999999@s.whatsapp.net)
-      const phone = chat.id.replace('@s.whatsapp.net', '').replace('@c.us', '')
-      const normalized = normalizePhone(phone)
-
-      // Busca lead associado
-      const lead = leadMap.get(normalized)
-
-      // Processa mensagens (se disponíveis)
-      const messages = chat.messages || []
-      const visibleMessages = messages.filter((msg) => {
-        const text = extractMessageText(msg)
+    // 5. Processa conversas
+    const conversations: Conversation[] = Array.from(grouped.entries()).map(
+      ([session_id, messages]) => {
         // Filtra mensagens de ferramentas
-        return (
-          !text.startsWith('[Used tools:') && !text.startsWith('Used tools:')
+        const visibleMessages = messages.filter(
+          (m) =>
+            !m.message?.content?.startsWith('[Used tools:') &&
+            !m.message?.content?.startsWith('Used tools:')
         )
-      })
 
-      // Última mensagem
-      const lastMsg = visibleMessages[visibleMessages.length - 1]
-      const lastMessage = lastMsg ? extractMessageText(lastMsg) : ''
-      const lastType = lastMsg?.key.fromMe ? 'ai' : 'human'
+        const lastMsg =
+          visibleMessages[visibleMessages.length - 1] ||
+          messages[messages.length - 1]
 
-      conversations.push({
-        session_id: phone,
-        clientName: lead?.nome || chat.name || phone,
-        messages: messages.map((msg) => ({
-          id: parseInt(msg.key.id) || 0,
-          session_id: phone,
-          media_url: extractMediaUrl(msg),
-          message: {
-            type: msg.key.fromMe ? 'ai' : 'human',
-            content: extractMessageText(msg),
-          },
-        })),
-        visibleMessages: visibleMessages.map((msg) => ({
-          id: parseInt(msg.key.id) || 0,
-          session_id: phone,
-          media_url: extractMediaUrl(msg),
-          message: {
-            type: msg.key.fromMe ? 'ai' : 'human',
-            content: extractMessageText(msg),
-          },
-        })),
-        messageCount: visibleMessages.length,
-        lastMessage: lastMessage.substring(0, 100),
-        lastType,
-        lead,
-      })
-    }
+        // Busca lead
+        const normalized = session_id.replace(/\D/g, '')
+        const lead = leadMap.get(normalized) || leadMap.get(session_id)
 
-    // 5. Ordena por última mensagem (mais recente primeiro)
+        return {
+          session_id,
+          clientName: lead?.nome || undefined,
+          messages,
+          visibleMessages,
+          messageCount: visibleMessages.length,
+          lastMessage: lastMsg?.message?.content || '',
+          lastType: lastMsg?.message?.type || 'human',
+          lead: lead || undefined,
+        }
+      }
+    )
+
+    // 6. Ordena por última mensagem (mais recente primeiro)
     conversations.sort((a, b) => {
       const timeA =
-        a.messages.length > 0
-          ? a.messages[a.messages.length - 1].id
-          : 0
+        a.messages.length > 0 ? a.messages[a.messages.length - 1].id : 0
       const timeB =
-        b.messages.length > 0
-          ? b.messages[b.messages.length - 1].id
-          : 0
+        b.messages.length > 0 ? b.messages[b.messages.length - 1].id : 0
       return timeB - timeA
     })
 
@@ -144,7 +130,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       conversations,
       count: conversations.length,
-      source: 'dinasti-api',
+      source: 'supabase',
       fetchTime,
       leadsTime,
       totalTime,

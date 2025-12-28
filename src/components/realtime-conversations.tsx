@@ -116,11 +116,6 @@ export function RealtimeConversations({
     (c) => c.session_id === selectedSession
   )
 
-  // Status de conexão
-  const connectionStatus = isPolling
-    ? `Atualizando (${Math.round(fetchTime)}ms)`
-    : 'Conectado'
-
   return (
     <div className="flex h-full relative">
       {/* Indicador de nova mensagem */}
@@ -130,21 +125,6 @@ export function RealtimeConversations({
           Mensagem nova recebida!
         </div>
       )}
-
-      {/* Status de conexão (canto superior esquerdo) */}
-      <div className="absolute top-4 left-4 z-40 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-sm border border-gray-200">
-        <span
-          className={`w-2 h-2 rounded-full ${
-            isPolling ? 'bg-blue-500 animate-pulse' : 'bg-green-500'
-          }`}
-        ></span>
-        <span className="text-gray-700">{connectionStatus}</span>
-        {lastUpdate && (
-          <span className="text-gray-500">
-            • {lastUpdate.toLocaleTimeString('pt-BR')}
-          </span>
-        )}
-      </div>
 
       {/* Erro de conexão */}
       {error && (
