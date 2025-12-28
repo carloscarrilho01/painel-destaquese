@@ -38,6 +38,19 @@ function cleanToolMessage(content: string): string {
     }
   }
 
+  // Remove dados técnicos de fotos (DISCOVERY, CIVIC, etc)
+  // Padrão: {"row_number":1,"Carros disponiveis":"","Fotos bmw":"https://..."...}
+  if (cleaned.startsWith('[{"row_number"') || cleaned.startsWith('{"row_number"')) {
+    // É um array ou objeto JSON de dados técnicos, não é mensagem real
+    return ''
+  }
+
+  // Remove prefixos de descoberta de fotos como ":"[{"row_number"
+  if (cleaned.includes('"row_number"') && cleaned.includes('"Fotos')) {
+    // Contém dados técnicos de fotos, bloqueia toda mensagem
+    return ''
+  }
+
   // Se após limpar não sobrou nada, significa que era apenas tool call sem conteúdo
   return cleaned || ''
 }
