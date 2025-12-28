@@ -84,12 +84,24 @@ export async function GET(request: NextRequest) {
     // 5. Processa conversas
     const conversations: Conversation[] = Array.from(grouped.entries()).map(
       ([session_id, messages]) => {
-        // Filtra mensagens de ferramentas
-        const visibleMessages = messages.filter(
-          (m) =>
-            !m.message?.content?.startsWith('[Used tools:') &&
-            !m.message?.content?.startsWith('Used tools:')
-        )
+        // Limpar e filtrar mensagens de tool_calls para exibição
+        const visibleMessages = messages
+          .filter((m) => !isToolMessage(m.message?.content))
+          .map((m) => {
+            // Limpa o conteúdo de tool calls mantendo apenas a mensagem real
+            if (m.message?.content) {
+              const cleanedContent = cleanToolMessage(m.message.content)
+              return {
+                ...m,
+                message: {
+                  ...m.message,
+                  content: cleanedContent,
+                },
+              }
+            }
+            return m
+          })
+          .filter((m) => m.message?.content) // Remove mensagens vazias após limpeza
 
         const lastMsg =
           visibleMessages[visibleMessages.length - 1] ||
@@ -148,6 +160,32 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+/**
+ * Limpa mensagens que contêm tool calls e extrai apenas o conteúdo real
+ */
+function cleanToolMessage(content: string): string {
+  if (!content) return ''
+
+  // Se não é uma mensagem de tool, retorna como está
+  if (!content.startsWith('[Used tools:') && !content.startsWith('Used tools:')) {
+    return content
+  }
+
+  // Remove o prefixo de tool call e extrai apenas o conteúdo real
+  // Padrão: [Used tools: ... Resul_ ou Result: seguido do conteúdo real
+  const toolPattern = /\[?Used tools:.*?(?:Resul[t_]|Result:)\s*/i
+  const cleaned = content.replace(toolPattern, '').trim()
+
+  // Se após limpar não sobrou nada, significa que era apenas tool call sem conteúdo
+  return cleaned || ''
+}
+
+function isToolMessage(content: string): boolean {
+  // Verifica se é uma mensagem que APENAS contém tool call (sem conteúdo real)
+  const cleaned = cleanToolMessage(content)
+  return cleaned === ''
 }
 
 /**

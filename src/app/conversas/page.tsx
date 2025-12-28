@@ -4,8 +4,32 @@ import { AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import type { ChatMessage, Conversation, Lead } from '@/lib/types'
 
+/**
+ * Limpa mensagens que contêm tool calls e extrai apenas o conteúdo real
+ * Exemplo: "[Used tools: Tool: atualiza_nome, Input: {}, Resul_seminovo ou quer fazer avaliação do seu veículo?"
+ * Retorna: "seminovo ou quer fazer avaliação do seu veículo?"
+ */
+function cleanToolMessage(content: string): string {
+  if (!content) return ''
+
+  // Se não é uma mensagem de tool, retorna como está
+  if (!content.startsWith('[Used tools:') && !content.startsWith('Used tools:')) {
+    return content
+  }
+
+  // Remove o prefixo de tool call e extrai apenas o conteúdo real
+  // Padrão: [Used tools: ... Resul_ ou Result: seguido do conteúdo real
+  const toolPattern = /\[?Used tools:.*?(?:Resul[t_]|Result:)\s*/i
+  const cleaned = content.replace(toolPattern, '').trim()
+
+  // Se após limpar não sobrou nada, significa que era apenas tool call sem conteúdo
+  return cleaned || ''
+}
+
 function isToolMessage(content: string): boolean {
-  return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
+  // Agora verifica se é uma mensagem que APENAS contém tool call (sem conteúdo real)
+  const cleaned = cleanToolMessage(content)
+  return cleaned === ''
 }
 
 async function getConversations() {
@@ -54,8 +78,25 @@ async function getConversations() {
   })
 
   return Array.from(grouped.entries()).map(([session_id, messages]) => {
-    // Filtrar mensagens de tool_calls para exibição
-    const visibleMessages = messages.filter(m => !isToolMessage(m.message?.content))
+    // Limpar e filtrar mensagens de tool_calls para exibição
+    const visibleMessages = messages
+      .filter(m => !isToolMessage(m.message?.content))
+      .map(m => {
+        // Limpa o conteúdo de tool calls mantendo apenas a mensagem real
+        if (m.message?.content) {
+          const cleanedContent = cleanToolMessage(m.message.content)
+          return {
+            ...m,
+            message: {
+              ...m.message,
+              content: cleanedContent
+            }
+          }
+        }
+        return m
+      })
+      .filter(m => m.message?.content) // Remove mensagens vazias após limpeza
+
     const lastMsg = visibleMessages[visibleMessages.length - 1] || messages[messages.length - 1]
 
     // Buscar lead completo pelo telefone (session_id) - tentar várias variações
