@@ -175,8 +175,13 @@ function cleanToolMessage(content: string): string {
 
   // Remove o prefixo de tool call e extrai apenas o conteúdo real
   // Padrão: [Used tools: ... Resul_ ou Result: seguido do conteúdo real
-  const toolPattern = /\[?Used tools:.*?(?:Resul[t_]|Result:)\s*/i
-  const cleaned = content.replace(toolPattern, '').trim()
+  const toolPattern = /\[?Used tools:.*?(?:Resul[t_]|Result:)\s*/is
+  let cleaned = content.replace(toolPattern, '').trim()
+
+  // Remove dados de lead no formato : [[{"id":"..."}]]
+  // Exemplo: : [[{"id":"7305ffbb-4e44-4d0e-9423-d9e8549780cf",...}]]
+  const leadDataPattern = /^\s*:\s*\[\[\{[^\]]*\}\]\]\s*/s
+  cleaned = cleaned.replace(leadDataPattern, '').trim()
 
   // Se após limpar não sobrou nada, significa que era apenas tool call sem conteúdo
   return cleaned || ''
