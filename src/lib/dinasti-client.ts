@@ -174,14 +174,15 @@ export class DinastiClient {
 
   /**
    * Envia mensagem de texto
+   * Endpoint: POST /chat/send/text
    */
   async sendText(phone: string, text: string): Promise<any> {
     const payload = {
-      number: phone.includes('@') ? phone : `${phone}@s.whatsapp.net`,
-      text,
+      Phone: phone,
+      Body: text,
     }
 
-    return this.fetch(`/send/text/${this.instance}`, {
+    return this.fetch(`/chat/send/text`, {
       method: 'POST',
       body: JSON.stringify(payload),
     })
@@ -189,52 +190,51 @@ export class DinastiClient {
 
   /**
    * Envia mensagem com mídia
+   * Endpoints: POST /chat/send/image, /chat/send/audio, /chat/send/video, /chat/send/document
    */
   async sendMedia(payload: SendMessagePayload): Promise<any> {
-    const number = payload.phone.includes('@')
-      ? payload.phone
-      : `${payload.phone}@s.whatsapp.net`
+    const phone = payload.phone
 
     // Determina o tipo de mídia
     if (payload.image) {
-      return this.fetch(`/send/image/${this.instance}`, {
+      return this.fetch(`/chat/send/image`, {
         method: 'POST',
         body: JSON.stringify({
-          number,
-          image: payload.image,
-          caption: payload.caption || payload.message,
+          Phone: phone,
+          Image: payload.image,
+          Caption: payload.caption || payload.message || '',
         }),
       })
     }
 
     if (payload.audio) {
-      return this.fetch(`/send/audio/${this.instance}`, {
+      return this.fetch(`/chat/send/audio`, {
         method: 'POST',
         body: JSON.stringify({
-          number,
-          audio: payload.audio,
+          Phone: phone,
+          Audio: payload.audio,
         }),
       })
     }
 
     if (payload.video) {
-      return this.fetch(`/send/video/${this.instance}`, {
+      return this.fetch(`/chat/send/video`, {
         method: 'POST',
         body: JSON.stringify({
-          number,
-          video: payload.video,
-          caption: payload.caption || payload.message,
+          Phone: phone,
+          Video: payload.video,
+          Caption: payload.caption || payload.message || '',
         }),
       })
     }
 
     if (payload.document) {
-      return this.fetch(`/send/document/${this.instance}`, {
+      return this.fetch(`/chat/send/document`, {
         method: 'POST',
         body: JSON.stringify({
-          number,
-          document: payload.document,
-          caption: payload.caption || payload.message,
+          Phone: phone,
+          Document: payload.document,
+          Caption: payload.caption || payload.message || '',
         }),
       })
     }
@@ -266,27 +266,28 @@ export class DinastiClient {
   }
 
   /**
-   * Verifica status da instância
+   * Verifica status da sessão/instância
+   * Endpoint: GET /session/status
    */
   async getInstanceStatus(): Promise<any> {
     try {
-      return await this.fetch(`/instance/connectionState/${this.instance}`)
+      return await this.fetch(`/session/status`)
     } catch (error) {
       console.error('Erro ao verificar status:', error)
-      return { state: 'disconnected' }
+      return { connected: false, loggedIn: false }
     }
   }
 
   /**
    * Marca mensagem como lida
+   * Endpoint: POST /chat/markread
    */
-  async markAsRead(phone: string, messageId: string): Promise<void> {
+  async markAsRead(phone: string, messageId?: string): Promise<void> {
     try {
-      await this.fetch(`/chat/markMessageAsRead/${this.instance}`, {
+      await this.fetch(`/chat/markread`, {
         method: 'POST',
         body: JSON.stringify({
-          jid: phone.includes('@') ? phone : `${phone}@s.whatsapp.net`,
-          messageId,
+          Phone: phone,
         }),
       })
     } catch (error) {
