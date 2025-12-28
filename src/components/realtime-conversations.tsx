@@ -1,72 +1,25 @@
 'use client'
 
+/**
+ * Versão OTIMIZADA do componente de conversas
+ *
+ * Mudanças principais:
+ * 1. Busca conversas ativas direto da API Dinasti (muito mais rápido)
+ * 2. Usa polling inteligente que pausa quando usuário sai da página
+ * 3. Banco de dados usado apenas para histórico e enriquecimento
+ * 4. Performance constante independente do volume de mensagens
+ *
+ * Migração:
+ * - Renomeie realtime-conversations.tsx para realtime-conversations-old.tsx
+ * - Renomeie este arquivo para realtime-conversations.tsx
+ */
+
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { ConversationList } from '@/components/conversation-list'
 import { ChatView } from '@/components/chat-view'
-import type { ChatMessage, Conversation, Lead } from '@/lib/types'
-
-function isToolMessage(content: string): boolean {
-  return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
-}
-
-function processConversations(chats: ChatMessage[], leads: Lead[] | null): Conversation[] {
-  // Criar mapa de telefone -> lead completo (normalizado com variações)
-  const leadMap = new Map<string, Lead>()
-  leads?.forEach(lead => {
-    if (lead.telefone) {
-      const phone = lead.telefone.replace(/\D/g, '')
-      leadMap.set(phone, lead)
-      leadMap.set(lead.telefone, lead)
-
-      // Variações com/sem código do país
-      if (phone.startsWith('55')) {
-        const semPais = phone.slice(2)
-        leadMap.set(semPais, lead)
-
-        // Adicionar 9 no celular: 55XX + 9 + XXXXXXXX (telefones antigos sem o 9)
-        if (semPais.length === 10) {
-          const ddd = semPais.slice(0, 2)
-          const numero = semPais.slice(2)
-          leadMap.set(`55${ddd}9${numero}`, lead)
-          leadMap.set(`${ddd}9${numero}`, lead)
-        }
-      }
-    }
-  })
-
-  const grouped = new Map<string, ChatMessage[]>()
-
-  chats.forEach((chat: ChatMessage) => {
-    const existing = grouped.get(chat.session_id) || []
-    existing.push(chat)
-    grouped.set(chat.session_id, existing)
-  })
-
-  return Array.from(grouped.entries()).map(([session_id, messages]) => {
-    // Filtrar mensagens de tool_calls para exibição
-    const visibleMessages = messages.filter(m => !isToolMessage(m.message?.content))
-    const lastMsg = visibleMessages[visibleMessages.length - 1] || messages[messages.length - 1]
-
-    // Buscar lead completo pelo telefone (session_id) - tentar várias variações
-    const normalizedSessionId = session_id.replace(/\D/g, '')
-    const lead = leadMap.get(normalizedSessionId) ||
-                 leadMap.get(session_id) ||
-                 (normalizedSessionId.startsWith('55') ? leadMap.get(normalizedSessionId.slice(2)) : undefined)
-
-    return {
-      session_id,
-      clientName: lead?.nome || undefined,
-      messages,
-      visibleMessages,
-      messageCount: visibleMessages.length,
-      lastMessage: lastMsg?.message?.content || '',
-      lastType: lastMsg?.message?.type || 'human',
-      lead: lead || undefined
-    }
-  })
-}
+import { useSmartDinastiPolling } from '@/hooks/use-dinasti-polling'
+import type { Conversation, Lead } from '@/lib/types'
 
 export function RealtimeConversations({
   initialConversations,
@@ -77,27 +30,40 @@ export function RealtimeConversations({
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [conversations, setConversations] = useState(initialConversations)
-  const [selectedSession, setSelectedSession] = useState(initialSession || initialConversations[0]?.session_id)
+
+  const [selectedSession, setSelectedSession] = useState(
+    initialSession || initialConversations[0]?.session_id
+  )
   const [isLive, setIsLive] = useState(false)
-  const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error' | 'polling'>('connecting')
 
-  // Função para atualizar dados
-  const handleUpdateConversations = async () => {
-    try {
-      const [chatsResult, leadsResult] = await Promise.all([
-        supabase.from('chats').select('*').order('id', { ascending: true }),
-        supabase.from('leads').select('*')
-      ])
-
-      if (chatsResult.data && leadsResult.data) {
-        const processed = processConversations(chatsResult.data, leadsResult.data)
-        setConversations(processed)
+  // Hook de polling inteligente da API Dinasti
+  const {
+    conversations,
+    isLoading,
+    error,
+    lastUpdate,
+    fetchTime,
+    refresh,
+    isPolling,
+  } = useSmartDinastiPolling({
+    interval: 5000, // 5 segundos (pode ajustar)
+    enabled: true, // Sempre ativo quando página visível
+    onUpdate: (newConversations) => {
+      // Detecta novas mensagens
+      const hasNewMessages = newConversations.length > conversations.length
+      if (hasNewMessages) {
+        setIsLive(true)
+        setTimeout(() => setIsLive(false), 2000)
       }
-    } catch (error) {
-      console.error('Erro ao buscar dados:', error)
-    }
-  }
+    },
+    onError: (err) => {
+      console.error('❌ [Polling] Erro:', err)
+    },
+  })
+
+  // Usa conversas iniciais enquanto carrega
+  const displayConversations =
+    conversations.length > 0 ? conversations : initialConversations
 
   // Toggle trava do agente
   const handleToggleTrava = async (lead: Lead) => {
@@ -109,13 +75,16 @@ export function RealtimeConversations({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           leadId: lead.id,
-          updates: { trava: newTravaValue }
-        })
+          updates: { trava: newTravaValue },
+        }),
       })
 
       if (!response.ok) {
         throw new Error('Falha ao atualizar trava')
       }
+
+      // Atualiza conversas após alterar trava
+      await refresh()
     } catch (error) {
       console.error('Erro ao atualizar trava:', error)
       alert('Erro ao pausar/despausar agente. Tente novamente.')
@@ -136,106 +105,21 @@ export function RealtimeConversations({
     }
   }, [searchParams, selectedSession])
 
-  useEffect(() => {
-    // Função para buscar dados atualizados
-    const fetchData = async () => {
-      try {
-        const [chatsResult, leadsResult] = await Promise.all([
-          supabase.from('chats').select('*').order('id', { ascending: true }),
-          supabase.from('leads').select('*')
-        ])
-
-        if (chatsResult.data && leadsResult.data) {
-          const processed = processConversations(chatsResult.data, leadsResult.data)
-          setConversations(processed)
-        }
-      } catch (error) {
-        console.error('Erro ao buscar dados:', error)
-      }
-    }
-
-    let pollingInterval: NodeJS.Timeout | null = null
-    let hasStartedPolling = false
-
-    // Iniciar polling imediatamente como fallback
-    // Se Realtime conectar, o polling será cancelado
-    const startPolling = () => {
-      if (hasStartedPolling) return
-      hasStartedPolling = true
-
-      console.log('🔄 [Polling] Iniciando polling a cada 3 segundos...')
-      pollingInterval = setInterval(() => {
-        console.log('🔄 [Polling] Verificando novas mensagens...')
-        fetchData()
-      }, 3000)
-      setRealtimeStatus('polling')
-    }
-
-    // Iniciar polling após 2 segundos se Realtime não conectar
-    const pollingTimeout = setTimeout(() => {
-      if (realtimeStatus === 'connecting') {
-        console.log('⏱️ [Polling] Realtime demorou, iniciando polling...')
-        startPolling()
-      }
-    }, 2000)
-
-    // Tentar subscrever via Realtime
-    const channel = supabase
-      .channel('chats-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'chats'
-        },
-        (payload) => {
-          console.log('✅ [Realtime] Nova mensagem recebida:', payload)
-          setIsLive(true)
-          fetchData()
-          setTimeout(() => setIsLive(false), 2000)
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 [Realtime] Status:', status)
-
-        if (status === 'SUBSCRIBED') {
-          setRealtimeStatus('connected')
-          console.log('✅ [Realtime] Conectado com sucesso!')
-
-          // Cancelar polling se estava rodando
-          if (pollingInterval) {
-            clearInterval(pollingInterval)
-            pollingInterval = null
-            hasStartedPolling = false
-            console.log('⏹️ [Polling] Polling cancelado, Realtime ativo')
-          }
-          clearTimeout(pollingTimeout)
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          console.warn('⚠️ [Realtime] Erro na conexão:', status)
-          startPolling()
-        }
-      })
-
-    // Cleanup
-    return () => {
-      console.log('🔌 [Realtime] Desconectando...')
-      supabase.removeChannel(channel)
-      if (pollingInterval) {
-        clearInterval(pollingInterval)
-      }
-      clearTimeout(pollingTimeout)
-    }
-  }, [])
-
   // Atualizar session selecionada se mudar pela URL
   useEffect(() => {
     if (initialSession && initialSession !== selectedSession) {
       setSelectedSession(initialSession)
     }
-  }, [initialSession])
+  }, [initialSession, selectedSession])
 
-  const selectedConversation = conversations.find(c => c.session_id === selectedSession)
+  const selectedConversation = displayConversations.find(
+    (c) => c.session_id === selectedSession
+  )
+
+  // Status de conexão
+  const connectionStatus = isPolling
+    ? `Atualizando (${Math.round(fetchTime)}ms)`
+    : 'Conectado'
 
   return (
     <div className="flex h-full relative">
@@ -247,17 +131,47 @@ export function RealtimeConversations({
         </div>
       )}
 
+      {/* Status de conexão (canto superior esquerdo) */}
+      <div className="absolute top-4 left-4 z-40 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 shadow-sm border border-gray-200">
+        <span
+          className={`w-2 h-2 rounded-full ${
+            isPolling ? 'bg-blue-500 animate-pulse' : 'bg-green-500'
+          }`}
+        ></span>
+        <span className="text-gray-700">{connectionStatus}</span>
+        {lastUpdate && (
+          <span className="text-gray-500">
+            • {lastUpdate.toLocaleTimeString('pt-BR')}
+          </span>
+        )}
+      </div>
+
+      {/* Erro de conexão */}
+      {error && (
+        <div className="absolute top-16 left-4 right-4 z-40 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="text-red-600 font-medium">
+              Erro ao carregar conversas:
+            </span>
+            <span className="text-red-500 text-sm">{error.message}</span>
+          </div>
+          <button
+            onClick={refresh}
+            className="mt-2 text-sm text-red-600 hover:text-red-700 underline"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
       <ConversationList
-        conversations={conversations}
+        conversations={displayConversations}
         selectedSession={selectedSession}
         onToggleTrava={handleToggleTrava}
-        onUpdateConversations={handleUpdateConversations}
+        onUpdateConversations={refresh}
         onNewConversation={handleNewConversation}
       />
-      <ChatView
-        conversation={selectedConversation}
-        session_id={selectedSession}
-      />
+      <ChatView conversation={selectedConversation} session_id={selectedSession} />
     </div>
   )
 }
