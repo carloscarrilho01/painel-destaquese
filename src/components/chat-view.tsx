@@ -229,8 +229,9 @@ export function ChatView({
     : session_id?.slice(-2)
 
   // Usar visibleMessages se disponível, senão filtrar na hora
-  const messagesToShow = conversation.visibleMessages ||
-    conversation.messages.filter(m => !isToolMessage(m.message?.content))
+  const messagesToShow = (conversation.visibleMessages ||
+    conversation.messages.filter(m => !isToolMessage(m.message?.content)))
+    .filter(m => m.message && m.message.content) // Filtrar mensagens válidas
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--background)]">
@@ -242,7 +243,7 @@ export function ChatView({
           <div>
             <p className="font-medium">{displayName}</p>
             <p className="text-sm text-[var(--muted)]">
-              {conversation.messageCount} mensagens
+              {messagesToShow.length} mensagens
             </p>
           </div>
         </div>
@@ -250,6 +251,7 @@ export function ChatView({
 
       <div ref={messagesContainerRef} className="flex-1 overflow-auto p-4 space-y-4">
         {messagesToShow.map((chat) => {
+          if (!chat.message || !chat.message.content) return null
           const isHuman = chat.message.type === 'human'
 
           // Buscar URL da imagem em todos os lugares possíveis
