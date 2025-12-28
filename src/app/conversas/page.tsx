@@ -23,10 +23,20 @@ function cleanToolMessage(content: string): string {
   const toolPattern = /\[?Used tools:[\s\S]*?(?:Resul[t_]|Result:)\s*/i
   let cleaned = content.replace(toolPattern, '').trim()
 
-  // Remove dados de lead no formato : [[{"id":"..."}]]
-  // Exemplo: : [[{"id":"7305ffbb-4e44-4d0e-9423-d9e8549780cf",...}]]
-  const leadDataPattern = /^\s*:\s*\[\[\{[\s\S]*?\}\]\]\s*/
-  cleaned = cleaned.replace(leadDataPattern, '').trim()
+  // Remove dados de lead no formato : [[{"id":"...","telefone":"..."}]]
+  // Pode estar com ou sem espaço antes dos dois pontos
+  if (cleaned.startsWith(':')) {
+    // Remove o ":" inicial e espaços
+    cleaned = cleaned.substring(1).trim()
+
+    // Se começa com [[{, remove até o final do array ]]
+    if (cleaned.startsWith('[[{')) {
+      const endIndex = cleaned.indexOf(']]')
+      if (endIndex !== -1) {
+        cleaned = cleaned.substring(endIndex + 2).trim()
+      }
+    }
+  }
 
   // Se após limpar não sobrou nada, significa que era apenas tool call sem conteúdo
   return cleaned || ''
