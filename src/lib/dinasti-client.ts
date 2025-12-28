@@ -73,7 +73,7 @@ export interface DinastiContact {
 }
 
 // Configuração da API
-const DINASTI_API_URL = process.env.DINASTI_API_URL || 'https://dinastiapi.destaquese.uk/api'
+const DINASTI_API_URL = process.env.DINASTI_API_URL || 'https://dinastiapi.destaquese.uk'
 const DINASTI_API_TOKEN = process.env.DINASTI_API_TOKEN || ''
 const DINASTI_INSTANCE = process.env.DINASTI_INSTANCE_NAME || ''
 
@@ -86,7 +86,9 @@ export class DinastiClient {
   private instance: string
 
   constructor(baseUrl?: string, token?: string, instance?: string) {
-    this.baseUrl = baseUrl || DINASTI_API_URL
+    // Garante que a URL base não termina com /api (será adicionado nos endpoints)
+    const base = baseUrl || DINASTI_API_URL
+    this.baseUrl = base.endsWith('/api') ? base : `${base}/api`
     this.token = token || DINASTI_API_TOKEN
     this.instance = instance || DINASTI_INSTANCE
 
