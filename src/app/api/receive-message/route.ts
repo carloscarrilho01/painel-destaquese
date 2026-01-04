@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// Este endpoint recebe webhooks do n8n quando uma nova mensagem chega
+// Este endpoint recebe webhooks da Uazapi ou n8n quando uma nova mensagem chega
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -32,11 +32,13 @@ export async function POST(request: NextRequest) {
       message: message.substring(0, 50) + '...'
     })
 
-    // Broadcast para todos os clientes conectados via Server-Sent Events (SSE)
-    // Ou usar um sistema de pub/sub como Pusher, Ably, etc.
-
-    // Por enquanto, apenas confirmar recebimento
-    // O próximo passo é implementar SSE ou usar Supabase Realtime
+    // Nota: O sistema atual usa polling para detectar novas mensagens
+    // As mensagens são salvas no Supabase e detectadas via polling de 5s
+    //
+    // Alternativas futuras:
+    // - Server-Sent Events (SSE) para push em tempo real
+    // - WebSockets para comunicação bidirecional
+    // - Supabase Realtime para atualizações automáticas
 
     return NextResponse.json({
       success: true,

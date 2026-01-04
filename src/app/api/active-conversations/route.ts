@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import {
-  dinastiClient,
+  uazapiClient,
   extractMessageText,
   extractMediaUrl,
   normalizePhone,
-} from '@/lib/dinasti-client'
+} from '@/lib/uazapi-client'
 import type { Conversation, Lead } from '@/lib/types'
 
 /**
  * GET /api/active-conversations
  *
- * Busca conversas ATIVAS direto da API Dinasti (Evolution API)
+ * Busca conversas ATIVAS direto da API Uazapi (WhatsApp API)
  * em vez de processar todo o histórico do banco de dados.
  *
  * Vantagens:
@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
       {
         error: 'Erro ao buscar conversas ativas',
         details: error instanceof Error ? error.message : 'Erro desconhecido',
-        source: 'dinasti-api',
+        source: 'uazapi',
       },
       { status: 500 }
     )

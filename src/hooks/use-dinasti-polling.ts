@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Conversation } from '@/lib/types'
 
 /**
- * Hook para polling de conversas da API Dinasti
+ * Hook para polling de conversas da API Uazapi
  *
  * Este hook substitui o sistema antigo de Realtime/Polling do Supabase
  * por uma solução mais eficiente que busca conversas ativas direto
@@ -15,7 +15,7 @@ import type { Conversation } from '@/lib/types'
  * - Polling inteligente (apenas quando necessário)
  */
 
-export interface UseDinastiPollingOptions {
+export interface UseUazapiPollingOptions {
   /**
    * Intervalo de polling em milissegundos
    * @default 5000 (5 segundos)
@@ -45,7 +45,7 @@ export interface UseDinastiPollingOptions {
   fetchOnMount?: boolean
 }
 
-export interface UseDinastiPollingReturn {
+export interface UseUazapiPollingReturn {
   conversations: Conversation[]
   isLoading: boolean
   error: Error | null
@@ -58,11 +58,11 @@ export interface UseDinastiPollingReturn {
 }
 
 /**
- * Hook para polling de conversas da API Dinasti
+ * Hook para polling de conversas da API Uazapi
  */
-export function useDinastiPolling(
-  options: UseDinastiPollingOptions = {}
-): UseDinastiPollingReturn {
+export function useUazapiPolling(
+  options: UseUazapiPollingOptions = {}
+): UseUazapiPollingReturn {
   const {
     interval = 5000,
     enabled = true,
@@ -112,7 +112,7 @@ export function useDinastiPolling(
       setError(error)
       onError?.(error)
 
-      console.error('❌ [Dinasti Polling] Erro ao buscar conversas:', error)
+      console.error('❌ [Uazapi Polling] Erro ao buscar conversas:', error)
     } finally {
       if (isMountedRef.current) {
         setIsLoading(false)
@@ -128,7 +128,7 @@ export function useDinastiPolling(
       return // Já está fazendo polling
     }
 
-    console.log(`🔄 [Dinasti Polling] Iniciando polling (${interval}ms)`)
+    console.log(`🔄 [Uazapi Polling] Iniciando polling (${interval}ms)`)
 
     setIsPolling(true)
 
@@ -142,7 +142,7 @@ export function useDinastiPolling(
    */
   const stopPolling = () => {
     if (pollingIntervalRef.current) {
-      console.log('⏸️ [Dinasti Polling] Parando polling')
+      console.log('⏸️ [Uazapi Polling] Parando polling')
 
       clearInterval(pollingIntervalRef.current)
       pollingIntervalRef.current = null
@@ -154,7 +154,7 @@ export function useDinastiPolling(
    * Refresh manual
    */
   const refresh = async () => {
-    console.log('🔄 [Dinasti Polling] Refresh manual')
+    console.log('🔄 [Uazapi Polling] Refresh manual')
     await fetchConversations()
   }
 
@@ -223,12 +223,12 @@ export function usePageVisibility() {
 /**
  * Hook combinado: polling inteligente que pausa quando usuário sai
  */
-export function useSmartDinastiPolling(
-  options: UseDinastiPollingOptions = {}
-): UseDinastiPollingReturn {
+export function useSmartUazapiPolling(
+  options: UseUazapiPollingOptions = {}
+): UseUazapiPollingReturn {
   const isPageVisible = usePageVisibility()
 
-  const polling = useDinastiPolling({
+  const polling = useUazapiPolling({
     ...options,
     enabled: options.enabled !== false && isPageVisible,
   })
@@ -245,3 +245,10 @@ export function useSmartDinastiPolling(
 
   return polling
 }
+
+// Exports de compatibilidade (mantém nomes antigos funcionando)
+export type UseDinastiPollingOptions = UseUazapiPollingOptions
+export type UseDinastiPollingReturn = UseUazapiPollingReturn
+export const useDinastiPolling = useUazapiPolling
+export const useSmartDinastiPolling = useSmartUazapiPolling
+

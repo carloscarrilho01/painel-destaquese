@@ -1,94 +1,147 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/server'
+import { uazapiClient } from '@/lib/uazapi-client'
 
+/**
+ * POST /api/send-message
+ *
+ * Envia mensagem via API Uazapi (WhatsApp API) diretamente,
+ * sem passar por n8n como intermediário.
+ *
+ * Vantagens:
+ * - Envio mais rápido (sem intermediário)
+ * - Menos pontos de falha
+ * - Melhor controle de erros
+ * - Reduz dependência de n8n para envio
+ *
+ * O banco de dados continua sendo usado para:
+ * - Salvar histórico de mensagens enviadas
+ * - Sincronização com painel
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { phone, message, clientName, messageType, mediaUrl } = body
 
     // Validações básicas
-    if (!phone || !message) {
+    if (!phone) {
       return NextResponse.json(
-        { error: 'Telefone e mensagem são obrigatórios' },
+        { error: 'Telefone é obrigatório' },
         { status: 400 }
       )
     }
 
-    // URL do webhook n8n (configurável via env)
-    const webhookUrl = process.env.N8N_WEBHOOK_URL
-
-    if (!webhookUrl) {
+    if (!message && !mediaUrl) {
       return NextResponse.json(
-        { error: 'Webhook n8n não configurado. Configure N8N_WEBHOOK_URL no .env' },
+        { error: 'Mensagem ou mídia é obrigatória' },
+        { status: 400 }
+      )
+    }
+
+    console.log(`📤 [Send Message] Enviando para ${phone}...`)
+
+    // 1. Envia via API Uazapi
+    let sendResult
+
+    try {
+      if (mediaUrl) {
+        // Envia com mídia
+        sendResult = await uazapiClient.sendMedia({
+          phone,
+          message,
+          image: messageType === 'image' ? mediaUrl : undefined,
+          audio: messageType === 'audio' ? mediaUrl : undefined,
+          video: messageType === 'video' ? mediaUrl : undefined,
+          document: messageType === 'document' ? mediaUrl : undefined,
+          caption: message,
+        })
+      } else {
+        // Envia apenas texto
+        sendResult = await uazapiClient.sendText(phone, message)
+      }
+
+      console.log('✅ [Send Message] Enviado com sucesso:', sendResult)
+    } catch (sendError) {
+      console.error('❌ [Send Message] Erro ao enviar:', sendError)
+
+      return NextResponse.json(
+        {
+          error: 'Falha ao enviar mensagem via WhatsApp',
+          details: sendError instanceof Error ? sendError.message : 'Erro desconhecido',
+        },
         { status: 500 }
       )
     }
 
-    // Payload para enviar ao n8n
-    const webhookPayload = {
-      phone,
-      message,
-      messageType: messageType || 'text',
-      mediaUrl: mediaUrl || undefined,
-      clientName,
-      timestamp: new Date().toISOString(),
-      source: 'painel-admin'
-    }
-
-    // Enviar para n8n webhook
-    const webhookResponse = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(webhookPayload),
-      signal: AbortSignal.timeout(10000) // 10 segundos timeout
-    })
-
-    if (!webhookResponse.ok) {
-      const errorData = await webhookResponse.text()
-      console.error('Erro no webhook n8n:', errorData)
-      return NextResponse.json(
-        { error: 'Falha ao enviar mensagem via webhook', details: errorData },
-        { status: webhookResponse.status }
-      )
-    }
-
-    const responseData = await webhookResponse.json().catch(() => ({}))
-
-    // Salvar mensagem no banco de dados para aparecer na lista
+    // 2. Salva no banco de dados (em background, não bloqueia)
     try {
-      await supabase.from('chats').insert({
+      const supabase = await createClient()
+
+      const chatData: any = {
         session_id: phone,
         message: {
-          type: 'human',
-          content: message
-        }
-      })
+          type: 'human', // Mensagem enviada pelo painel
+          content: message || '',
+        },
+      }
+
+      // Adiciona URL de mídia se houver
+      if (mediaUrl) {
+        chatData.media_url = mediaUrl
+      }
+
+      await supabase.from('chats').insert(chatData)
+
+      console.log('✅ [Send Message] Salvo no banco de dados')
     } catch (dbError) {
-      console.error('Erro ao salvar mensagem no banco:', dbError)
-      // Não falhar a requisição se apenas o banco falhar
+      console.error('⚠️ [Send Message] Erro ao salvar no banco:', dbError)
+      // Não falha a requisição se apenas o banco falhar
+      // A mensagem foi enviada com sucesso
     }
 
     return NextResponse.json({
       success: true,
       message: 'Mensagem enviada com sucesso',
-      webhookResponse: responseData,
-      sessionId: phone
+      response: sendResult,
+      sessionId: phone,
+      timestamp: new Date().toISOString(),
     })
-
   } catch (error) {
-    console.error('Erro ao enviar mensagem:', error)
-
-    if (error instanceof Error && error.name === 'TimeoutError') {
-      return NextResponse.json(
-        { error: 'Timeout ao conectar com webhook n8n' },
-        { status: 504 }
-      )
-    }
+    console.error('❌ [Send Message] Erro:', error)
 
     return NextResponse.json(
-      { error: 'Erro interno ao processar envio' },
+      {
+        error: 'Erro ao processar envio de mensagem',
+        details: error instanceof Error ? error.message : 'Erro desconhecido',
+      },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * GET /api/send-message
+ *
+ * Health check
+ */
+export async function GET() {
+  try {
+    // Verifica status da instância
+    const status = await uazapiClient.getInstanceStatus()
+
+    return NextResponse.json({
+      status: 'ok',
+      message: 'API de envio de mensagens Uazapi funcionando',
+      instance: status,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    return NextResponse.json(
+      {
+        status: 'error',
+        message: 'Erro ao verificar status',
+        details: error instanceof Error ? error.message : 'Erro desconhecido',
+      },
       { status: 500 }
     )
   }

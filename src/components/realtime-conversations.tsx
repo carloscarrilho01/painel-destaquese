@@ -4,14 +4,10 @@
  * Versão OTIMIZADA do componente de conversas
  *
  * Mudanças principais:
- * 1. Busca conversas ativas direto da API Dinasti (muito mais rápido)
+ * 1. Busca conversas ativas direto da API Uazapi (muito mais rápido)
  * 2. Usa polling inteligente que pausa quando usuário sai da página
  * 3. Banco de dados usado apenas para histórico e enriquecimento
  * 4. Performance constante independente do volume de mensagens
- *
- * Migração:
- * - Renomeie realtime-conversations.tsx para realtime-conversations-old.tsx
- * - Renomeie este arquivo para realtime-conversations.tsx
  */
 
 import { useEffect, useState } from 'react'
@@ -36,7 +32,7 @@ export function RealtimeConversations({
   )
   const [isLive, setIsLive] = useState(false)
 
-  // Hook de polling inteligente da API Dinasti
+  // Hook de polling inteligente da API Uazapi
   const {
     conversations,
     isLoading,
