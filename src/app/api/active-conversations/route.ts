@@ -1,11 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import {
-  uazapiClient,
-  extractMessageText,
-  extractMediaUrl,
-  normalizePhone,
-} from '@/lib/uazapi-client'
+import { cleanToolMessage, isToolMessage } from '@/lib/message-utils'
 import type { Conversation, Lead } from '@/lib/types'
 
 /**
@@ -24,7 +19,7 @@ import type { Conversation, Lead } from '@/lib/types'
  * - Enriquecer com dados de leads (nome, interesse, etc)
  * - Manter histórico completo para relatórios
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     console.log('🔄 [Active Conversations] Buscando conversas ativas...')
 
@@ -165,74 +160,6 @@ export async function GET(request: NextRequest) {
 /**
  * Limpa mensagens que contêm tool calls e extrai apenas o conteúdo real
  */
-function cleanToolMessage(content: string): string {
-  if (!content) return ''
-
-  // Se não é uma mensagem de tool, retorna como está
-  if (!content.startsWith('[Used tools:') && !content.startsWith('Used tools:')) {
-    return content
-  }
-
-  // Remove o prefixo de tool call e extrai apenas o conteúdo real
-  // Padrão: [Used tools: ... Resul_ ou Result: seguido do conteúdo real
-  // Usa [\s\S] em vez de flag 's' para compatibilidade ES5
-  const toolPattern = /\[?Used tools:[\s\S]*?(?:Resul[t_]|Result:)\s*/i
-  let cleaned = content.replace(toolPattern, '').trim()
-
-  // Remove dados de lead no formato : [[{"id":"...","telefone":"..."}]]
-  // Pode estar com ou sem espaço antes dos dois pontos
-  if (cleaned.startsWith(':')) {
-    // Remove o ":" inicial e espaços
-    cleaned = cleaned.substring(1).trim()
-
-    // Se começa com [[{, remove até o final do array ]]
-    if (cleaned.startsWith('[[{')) {
-      const endIndex = cleaned.indexOf(']]')
-      if (endIndex !== -1) {
-        cleaned = cleaned.substring(endIndex + 2).trim()
-      }
-    }
-  }
-
-  // Remove dados técnicos de fotos (DISCOVERY, CIVIC, etc)
-  // Padrão: [{"row_number":1,"Carros disponiveis":"","Fotos bmw":"https://..."...}]
-  if (cleaned.startsWith('[{"row_number"')) {
-    // Remove o array JSON completo e pega o que vem depois
-    const endIndex = cleaned.lastIndexOf(']')
-    if (endIndex !== -1) {
-      cleaned = cleaned.substring(endIndex + 1).trim()
-    }
-  }
-
-  // Remove objetos JSON que começam com {"row_number"
-  if (cleaned.startsWith('{"row_number"')) {
-    // Tenta encontrar o fim do objeto JSON
-    let depth = 0
-    let endIndex = -1
-    for (let i = 0; i < cleaned.length; i++) {
-      if (cleaned[i] === '{') depth++
-      if (cleaned[i] === '}') {
-        depth--
-        if (depth === 0) {
-          endIndex = i
-          break
-        }
-      }
-    }
-    if (endIndex !== -1) {
-      cleaned = cleaned.substring(endIndex + 1).trim()
-    }
-  }
-
-  // Se após limpar não sobrou nada, significa que era apenas tool call sem conteúdo
-  return cleaned || ''
-}
-
-function isToolMessage(content: string): boolean {
-  // Verifica se é uma mensagem que APENAS contém tool call (sem conteúdo real)
-  const cleaned = cleanToolMessage(content)
-  return cleaned === ''
-}
 
 /**
  * Gera variações de um número de telefone para matching

@@ -11,7 +11,11 @@
       "Bash(for branch in happy-einstein sharp-murdock stoic-lalande awesome-visvesvaraya)",
       "Bash(do echo \"=== $branch ===\")",
       "Bash(done)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(seminovo ou quer fazer avaliação do seu veículo?\" eram completamente\n  bloqueadas pelo filtro\n- Agora o filtro extrai apenas o conteúdo real: \"seminovo ou quer fazer)",
+      "Bash(avaliação do seu veículo?\"\n\nImplementação:\n- Função cleanToolMessage() usa regex para remover prefixo de tool call\n- Padrão: /\\[?Used tools:.*?(?:Resul[t_]|Result:)\\s*/i\n- isToolMessage() agora só bloqueia mensagens que são APENAS tool calls\n- Aplicado em src/app/conversas/page.tsx e src/app/api/active-conversations/route.ts\n\nResultado:\n- Todas as mensagens do agente agora aparecem no painel\n- Mantém apenas o conteúdo relevante para o usuário\n- Remove ruído técnico de execução de ferramentas\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(npx tsc:*)",
+      "Bash(npm run lint:*)"
     ],
     "deny": [],
     "ask": []

@@ -245,10 +245,3 @@ export function useSmartUazapiPolling(
 
   return polling
 }
-
-// Exports de compatibilidade (mantém nomes antigos funcionando)
-export type UseDinastiPollingOptions = UseUazapiPollingOptions
-export type UseDinastiPollingReturn = UseUazapiPollingReturn
-export const useDinastiPolling = useUazapiPolling
-export const useSmartDinastiPolling = useSmartUazapiPolling
-

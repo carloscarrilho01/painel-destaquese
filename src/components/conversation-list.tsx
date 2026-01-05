@@ -1,12 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { Search, Pause, Play, Edit2, Trash2, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { Search, Pause, Play, Plus } from 'lucide-react'
+import { useState, useMemo, useCallback, memo } from 'react'
 import type { Conversation, Lead } from '@/lib/types'
 import { NewConversationModal } from './new-conversation-modal'
 
-export function ConversationList({
+export const ConversationList = memo(function ConversationList({
   conversations,
   selectedSession,
   onToggleTrava,
@@ -22,16 +22,18 @@ export function ConversationList({
   const [search, setSearch] = useState('')
   const [showNewConversation, setShowNewConversation] = useState(false)
 
-  const filtered = conversations.filter(conv => {
+  // Memoiza filtro de conversas para evitar re-cálculo desnecessário
+  const filtered = useMemo(() => {
     const searchLower = search.toLowerCase()
-    return (
+    return conversations.filter(conv => (
       conv.session_id.toLowerCase().includes(searchLower) ||
       conv.clientName?.toLowerCase().includes(searchLower) ||
       conv.lastMessage.toLowerCase().includes(searchLower)
-    )
-  })
+    ))
+  }, [conversations, search])
 
-  const handleToggleTrava = async (e: React.MouseEvent, lead: Lead) => {
+  // Memoiza handlers para evitar re-renders
+  const handleToggleTrava = useCallback(async (e: React.MouseEvent, lead: Lead) => {
     e.preventDefault()
     e.stopPropagation()
 
@@ -44,7 +46,7 @@ export function ConversationList({
         }
       }, 500)
     }
-  }
+  }, [onToggleTrava, onUpdateConversations])
 
   return (
     <div className="w-80 bg-[var(--card)] border-r border-[var(--border)] flex flex-col">
@@ -153,4 +155,4 @@ export function ConversationList({
       />
     </div>
   )
-}
+})

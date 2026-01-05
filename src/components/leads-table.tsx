@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, useCallback, memo } from 'react'
 import { Search, Phone, Calendar, Star, MessageCircle, Send } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -19,7 +19,7 @@ type Lead = {
   interessado: boolean
 }
 
-export function LeadsTable({
+export const LeadsTable = memo(function LeadsTable({
   leads,
   conversationSessions = []
 }: {
@@ -31,22 +31,25 @@ export function LeadsTable({
   const [showNewConversation, setShowNewConversation] = useState(false)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
-  const filtered = leads.filter(lead => {
-    const searchLower = search.toLowerCase()
-    const matchesSearch =
-      lead.telefone?.toLowerCase().includes(searchLower) ||
-      lead.nome?.toLowerCase().includes(searchLower) ||
-      lead.interesse?.toLowerCase().includes(searchLower)
+  // Memoiza filtro de leads
+  const filtered = useMemo(() => {
+    return leads.filter(lead => {
+      const searchLower = search.toLowerCase()
+      const matchesSearch =
+        lead.telefone?.toLowerCase().includes(searchLower) ||
+        lead.nome?.toLowerCase().includes(searchLower) ||
+        lead.interesse?.toLowerCase().includes(searchLower)
 
-    const matchesFilter =
-      filterInteressado === null || lead.interessado === filterInteressado
+      const matchesFilter =
+        filterInteressado === null || lead.interessado === filterInteressado
 
-    return matchesSearch && matchesFilter
-  })
+      return matchesSearch && matchesFilter
+    })
+  }, [leads, search, filterInteressado])
 
   // Função para verificar se lead tem conversa ativa
   // Normaliza telefone para tentar encontrar variações
-  const hasConversation = (telefone: string) => {
+  const hasConversation = useCallback((telefone: string) => {
     const cleanPhone = telefone.replace(/\D/g, '')
     return conversationSessions.some(session => {
       const cleanSession = session.replace(/\D/g, '')
@@ -56,7 +59,7 @@ export function LeadsTable({
              cleanPhone === cleanSession.slice(-11) || // reverso
              cleanPhone === cleanSession.slice(-10)    // reverso sem 9
     })
-  }
+  }, [conversationSessions])
 
   const handleStartConversation = (lead: Lead) => {
     setSelectedLead(lead)
@@ -223,4 +226,4 @@ export function LeadsTable({
       />
     </>
   )
-}
+})

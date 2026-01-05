@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ConversationList } from '@/components/conversation-list'
 import { ChatView } from '@/components/chat-view'
-import { useSmartDinastiPolling } from '@/hooks/use-dinasti-polling'
+import { useSmartUazapiPolling } from '@/hooks/use-uazapi-polling'
 import type { Conversation, Lead } from '@/lib/types'
 
 export function RealtimeConversations({
@@ -41,7 +41,7 @@ export function RealtimeConversations({
     fetchTime,
     refresh,
     isPolling,
-  } = useSmartDinastiPolling({
+  } = useSmartUazapiPolling({
     interval: 5000, // 5 segundos (pode ajustar)
     enabled: true, // Sempre ativo quando página visível
     onUpdate: (newConversations) => {

@@ -1,17 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { User, Bot, Send, Loader2, Paperclip, X, Image as ImageIcon, Mic } from 'lucide-react'
 import type { Conversation, MessageType } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 import { AudioRecorder } from './audio-recorder'
 import { TemplateSelector } from './template-selector'
+import { isToolMessage } from '@/lib/message-utils'
 
-function isToolMessage(content: string): boolean {
-  return content?.startsWith('[Used tools:') || content?.startsWith('Used tools:')
-}
-
-export function ChatView({
+export const ChatView = memo(function ChatView({
   conversation,
   session_id,
 }: {
@@ -45,7 +42,7 @@ export function ChatView({
     }
   }, [filePreview])
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -58,9 +55,9 @@ export function ChatView({
     } else {
       setFilePreview(null)
     }
-  }
+  }, [])
 
-  const handleRemoveFile = () => {
+  const handleRemoveFile = useCallback(() => {
     setSelectedFile(null)
     if (filePreview) {
       URL.revokeObjectURL(filePreview)
@@ -69,7 +66,7 @@ export function ChatView({
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
-  }
+  }, [filePreview])
 
   const uploadFileToSupabase = async (file: File): Promise<string> => {
     const timestamp = Date.now()
@@ -463,4 +460,4 @@ export function ChatView({
       </div>
     </div>
   )
-}
+})
